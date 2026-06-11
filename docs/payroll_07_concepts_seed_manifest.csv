@@ -1,0 +1,73 @@
+concept_code,concept_name,db_field,source_type,cost_center,role_type,display_order,active,amount
+DISPATCH_RETRIEVAL,Despacho / Retiro,dispatch_flag,DR,DR,DRIVER,1,true,751.4100
+ENTRY_BEFORE_1930,Entrada < 19:30,entry_before_1930_qty,DR,DR,DRIVER,2,true,2506.3674
+EXIT_AFTER_1930,Salida > 19:30,exit_after_1930_qty,DR,DR,DRIVER,3,true,8772.2858
+FAIR_WEEK_1,Feria Semana 01,fair_week_1_flag,DR,DR,DRIVER,4,true,10025.4695
+FAIR_WEEK_2,Feria Semana 02,fair_week_2_flag,DR,DR,DRIVER,5,true,12531.8369
+OUTSIDE_RADIUS,Fuera Radio Normal,outside_radius_flag,DR,DR,DRIVER,6,true,3759.5511
+OUTSIDE_RADIUS_V_REGION,Fuera Radio V Región,outside_radius_v_region_qty,DR,DR,DRIVER,7,true,6265.9184
+SATURDAY_WEEK_1,Sabado Semana 01,saturday_week_1_qty,DR,DR,DRIVER,8,true,20050.9390
+SUNDAY_WEEK_1,Domingo Semana 01,sunday_week_1_qty,DR,DR,DRIVER,9,true,25063.6738
+CLIENT_TRIPS,Viajes Por Cliente,client_trips_qty,DR,DR,DRIVER,10,true,6265.9184
+SATURDAY_AFTER_1600,Sábado > 16:00,saturday_after_1600_qty,DR,DR,DRIVER,11,true,10025.4695
+SUNDAY_AFTER_1600,Domingo > 16:00,sunday_after_1600_qty,DR,DR,DRIVER,12,true,11278.6532
+SATURDAY_WEEK_2,Sabado Semana 02,saturday_week_2_qty,DR,DR,DRIVER,13,true,23810.4901
+SUNDAY_WEEK_2,Domingo Semana 02,sunday_week_2_qty,DR,DR,DRIVER,14,true,28823.2249
+WEEKEND_DRYING,Secado Fin de Semana,weekend_drying_qty,DR,DR,DRIVER,15,true,550.9788
+EVENT,Evento,event_flag,DR,DR,DRIVER,16,true,751.4413
+WATER_POINT,Punto de Agua,water_point_flag,DR,DR,DRIVER,17,true,1492.1098
+LARGE_TRASH_BIN,Basurero Grande,large_trash_bin_qty,DR,DR,DRIVER,18,true,1056.7350
+SMALL_TRASH_BIN,Basurero chico,small_trash_bin_qty,DR,DR,DRIVER,19,true,263.9250
+FOSA,Fosa,fosa_qty,DR,DR,DRIVER,20,true,1492.4700
+DISPATCH_RETRIEVAL,Despacho / Retiro,dispatch_flag,DR,DR,ASSISTANT,1,true,376.3068
+ENTRY_BEFORE_1930,Entrada < 19:30,entry_before_1930_qty,DR,DR,ASSISTANT,2,true,1253.1837
+EXIT_AFTER_1930,Salida > 19:30,exit_after_1930_qty,DR,DR,ASSISTANT,3,true,7519.1021
+FAIR_WEEK_1,Feria Semana 01,fair_week_1_flag,DR,DR,ASSISTANT,4,true,7519.1021
+FAIR_WEEK_2,Feria Semana 02,fair_week_2_flag,DR,DR,ASSISTANT,5,true,10652.6475
+OUTSIDE_RADIUS,Fuera Radio Normal,outside_radius_flag,DR,DR,ASSISTANT,6,true,2819.3702
+OUTSIDE_RADIUS_V_REGION,Fuera Radio V Región,outside_radius_v_region_qty,DR,DR,ASSISTANT,7,true,5012.7348
+SATURDAY_WEEK_1,Sabado Semana 01,saturday_week_1_qty,DR,DR,ASSISTANT,8,true,15038.2043
+SUNDAY_WEEK_1,Domingo Semana 01,sunday_week_1_qty,DR,DR,ASSISTANT,9,true,20050.9390
+CLIENT_TRIPS,Viajes Por Cliente,client_trips_qty,DR,DR,ASSISTANT,10,true,5012.7348
+SATURDAY_AFTER_1600,Sábado > 16:00,saturday_after_1600_qty,DR,DR,ASSISTANT,11,true,8772.2858
+SUNDAY_AFTER_1600,Domingo > 16:00,sunday_after_1600_qty,DR,DR,ASSISTANT,12,true,10025.4695
+SATURDAY_WEEK_2,Sabado Semana 02,saturday_week_2_qty,DR,DR,ASSISTANT,13,true,18797.7553
+SUNDAY_WEEK_2,Domingo Semana 02,sunday_week_2_qty,DR,DR,ASSISTANT,14,true,23810.4901
+WEEKEND_DRYING,Secado Fin de Semana,weekend_drying_qty,DR,DR,ASSISTANT,15,true,275.3100
+EVENT,Evento,event_flag,DR,DR,ASSISTANT,16,true,376.7400
+WATER_POINT,Punto de Agua,water_point_flag,DR,DR,ASSISTANT,17,true,728.6400
+LARGE_TRASH_BIN,Basurero Grande,large_trash_bin_qty,DR,DR,ASSISTANT,18,true,951.1650
+SMALL_TRASH_BIN,Basurero chico,small_trash_bin_qty,DR,DR,ASSISTANT,19,true,238.0500
+FOSA,Fosa,fosa_qty,DR,DR,ASSISTANT,20,true,1458.3150
+CLEANING,Aseo,cleaning_flag,SERVICES,SERVICES,DRIVER,1,true,313.2959
+DRYING,Secado,drying_flag,SERVICES,SERVICES,DRIVER,2,true,275.7004
+DISPATCH_RETRIEVAL,Despacho / Retiro,dispatch_flag,SERVICES,SERVICES,DRIVER,3,true,751.9102
+ENTRY_BEFORE_0730,Entrada < 07:30,entry_before_0730_qty,SERVICES,SERVICES,DRIVER,4,true,2506.3674
+EXIT_AFTER_1930,Salida > 19:30,exit_after_1930_qty,SERVICES,SERVICES,DRIVER,5,true,8772.2858
+OUTSIDE_RADIUS,Fuera Radio Normal,outside_radius_flag,SERVICES,SERVICES,DRIVER,6,true,3759.5511
+OUTSIDE_RADIUS_V_REGION,Fuera Radio V Región,outside_radius_v_region_qty,SERVICES,SERVICES,DRIVER,7,true,6265.9184
+KIT_DELIVERY,Entrega Kit,kit_delivery_flag,SERVICES,SERVICES,DRIVER,8,true,313.2959
+LAVATORY_LOAD,Carga Lavamanos,lavatory_load_flag,SERVICES,SERVICES,DRIVER,9,true,31.3296
+SATURDAY_WEEK_1,Sabado,saturday_week_1_qty,SERVICES,SERVICES,DRIVER,10,true,11905.2450
+SUNDAY_WEEK_1,Domingo,sunday_week_1_qty,SERVICES,SERVICES,DRIVER,11,true,15038.2043
+WEEKEND_CLEANING,Aseo Fin de Semana,weekend_cleaning_qty,SERVICES,SERVICES,DRIVER,12,true,17.4319
+WEEKEND_DRYING,Secado Fin de Semana,weekend_drying_qty,SERVICES,SERVICES,DRIVER,13,true,551.4008
+SATURDAY_AFTER_1600,Sabado > 16:00,saturday_after_1600_qty,SERVICES,SERVICES,DRIVER,14,true,10025.4695
+SUNDAY_AFTER_1600,Domingo > 16:00,sunday_after_1600_qty,SERVICES,SERVICES,DRIVER,15,true,11278.6532
+RILES_SUCTION,Succión Riles (M3),riles_suction_flag,SERVICES,SERVICES,DRIVER,16,true,2527.4700
+CLEANING,Aseo,cleaning_flag,SERVICES,SERVICES,ASSISTANT,1,true,138.6900
+DRYING,Secado,drying_flag,SERVICES,SERVICES,ASSISTANT,2,true,138.6900
+DISPATCH_RETRIEVAL,Despacho / Retiro,dispatch_flag,SERVICES,SERVICES,ASSISTANT,3,true,376.7400
+ENTRY_BEFORE_0730,Entrada < 07:30,entry_before_0730_qty,SERVICES,SERVICES,ASSISTANT,4,true,1253.3850
+EXIT_AFTER_1930,Salida > 19:30,exit_after_1930_qty,SERVICES,SERVICES,ASSISTANT,5,true,7519.2750
+OUTSIDE_RADIUS,Fuera Radio Normal,outside_radius_flag,SERVICES,SERVICES,ASSISTANT,6,true,2820.3750
+OUTSIDE_RADIUS_V_REGION,Fuera Radio V Región,outside_radius_v_region_qty,SERVICES,SERVICES,ASSISTANT,7,true,5012.5050
+KIT_DELIVERY,Entrega Kit,kit_delivery_flag,SERVICES,SERVICES,ASSISTANT,8,true,138.6900
+LAVATORY_LOAD,Carga Lavamanos,lavatory_load_flag,SERVICES,SERVICES,ASSISTANT,9,true,24.8400
+SATURDAY_WEEK_1,Sabado,saturday_week_1_qty,SERVICES,SERVICES,ASSISTANT,10,true,11905.6050
+SUNDAY_WEEK_1,Domingo,sunday_week_1_qty,SERVICES,SERVICES,ASSISTANT,11,true,15038.5500
+WEEKEND_CLEANING,Aseo Fin de Semana,weekend_cleaning_qty,SERVICES,SERVICES,ASSISTANT,12,true,275.3100
+WEEKEND_DRYING,Secado Fin de Semana,weekend_drying_qty,SERVICES,SERVICES,ASSISTANT,13,true,275.3100
+SATURDAY_AFTER_1600,Sabado > 16:00,saturday_after_1600_qty,SERVICES,SERVICES,ASSISTANT,14,true,8772.6600
+SUNDAY_AFTER_1600,Domingo > 16:00,sunday_after_1600_qty,SERVICES,SERVICES,ASSISTANT,15,true,10025.0100
+RILES_SUCTION,Succión Riles (M3),riles_suction_flag,SERVICES,SERVICES,ASSISTANT,16,true,1253.3850

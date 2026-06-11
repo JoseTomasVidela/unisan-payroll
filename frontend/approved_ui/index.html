@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UNISAN | Liquidaciones</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <section id="login-screen" class="login-screen">
+        <div class="login-card">
+            <div class="login-logo">UNISAN</div>
+            <h1>Acceso al módulo</h1>
+            <p>Liquidaciones</p>
+            <label>Usuario
+                <input type="text" value="admin" />
+            </label>
+            <label>Contraseña
+                <input type="password" value="admin" />
+            </label>
+            <button id="login-btn" class="btn primary full">Ingresar</button>
+            <small>Demo frontend · sin autenticación real</small>
+        </div>
+    </section>
+
+    <section id="app-shell" class="app-shell hidden">
+        <aside id="sidebar" class="sidebar">
+            <div class="logo">UNISAN</div>
+
+            <div class="profile">
+                <div class="avatar">JV</div>
+                <div class="profile-text">
+                    <strong>Jose Tomas Videla</strong>
+                    <span>Administrador</span>
+                </div>
+            </div>
+
+            <nav>
+                <button class="nav-item active" data-view="dashboard">◉ <span>Dashboard</span></button>
+
+                <div class="nav-label">LIQUIDACIONES</div>
+                <button class="nav-item" data-view="dr-drivers">▸ <span>D&R Choferes</span></button>
+                <button class="nav-item" data-view="dr-assistants">▸ <span>D&R Auxiliares</span></button>
+                <button class="nav-item" data-view="services-drivers">▸ <span>Servicios Choferes</span></button>
+                <button class="nav-item" data-view="services-assistants">▸ <span>Servicios Auxiliares</span></button>
+
+                <div class="nav-label">CONSULTAS</div>
+                <button class="nav-item" data-view="search">⌕ <span>Búsqueda</span></button>
+
+                <div class="nav-spacer"></div>
+                <div class="nav-label">CUENTA</div>
+                <button class="nav-item" data-view="users">👤 <span>Usuarios</span></button>
+                <button class="nav-item" id="logout-btn">↪ <span>Cerrar Sesión</span></button>
+            </nav>
+        </aside>
+
+        <section class="app">
+            <header class="topbar">
+                <button id="toggle-sidebar" class="hamburger">☰</button>
+                <div class="top-icons">
+                    <span class="badge">3</span>
+                    <span class="badge">5</span>
+                    <div class="avatar small">JV</div>
+                    <span>Jose Tomas Videla ▾</span>
+                </div>
+            </header>
+
+            <main class="main">
+                <div class="page-title">
+                    <h1 id="page-title">Dashboard</h1>
+                    <div class="breadcrumb">Inicio / <span id="breadcrumb">Dashboard</span></div>
+                </div>
+
+                <section id="dashboard" class="view active">
+                    <div class="grid two">
+                        <div class="panel">
+                            <div class="panel-title dark">Importar Excel D&R</div>
+                            <div class="panel-body">
+                                <label>Ciclo
+                                    <select><option>Ciclo Mayo 2026</option><option>Ciclo Junio 2026</option></select>
+                                </label>
+                                <label class="file-input">
+                                    <input type="file" />
+                                    Seleccionar archivo D&R
+                                </label>
+                                <button class="btn primary">Importar D&R</button>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-title cyan">Importar Excel Servicios</div>
+                            <div class="panel-body">
+                                <label>Ciclo
+                                    <select><option>Ciclo Mayo 2026</option><option>Ciclo Junio 2026</option></select>
+                                </label>
+                                <label class="file-input">
+                                    <input type="file" />
+                                    Seleccionar archivo Servicios
+                                </label>
+                                <button class="btn primary">Importar Servicios</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-title dark">Historial de Importaciones</div>
+                        <div class="panel-body">
+                            <table class="erp-table">
+                                <thead><tr><th>Fecha</th><th>Archivo</th><th>Tipo</th><th>Registros</th><th>Usuario</th></tr></thead>
+                                <tbody>
+                                    <tr><td>03-06-2026</td><td>Base Producción Servicios.xlsx</td><td><span class="tag blue-tag">SERVICES</span></td><td>5.610</td><td>admin</td></tr>
+                                    <tr><td>03-06-2026</td><td>Base Producciones D&R.xlsx</td><td><span class="tag green-tag">DR</span></td><td>4.438</td><td>admin</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="liquidation-view" class="view">
+                    <div class="panel">
+                        <div class="panel-title dark" id="liquidation-panel-title">Liquidaciones D&R Choferes</div>
+                        <div class="panel-body">
+                            <div class="toolbar">
+                                <div class="filters">
+                                    <label>Ciclo
+                                        <select><option>Ciclo Mayo 2026</option><option>Ciclo Junio 2026</option></select>
+                                    </label>
+                                    <label>Trabajador
+                                        <select><option>Daniel Peña</option><option>Andrés Moya</option><option>Luis Acevedo</option></select>
+                                    </label>
+                                </div>
+                                <div class="actions">
+                                    <button class="btn secondary" id="edit-btn">Editar</button>
+                                    <button class="btn primary hidden" id="save-btn">Guardar</button>
+                                    <button class="btn secondary">Exportar Excel</button>
+                                    <button class="btn secondary">Exportar CSV</button>
+                                </div>
+                            </div>
+
+                            <div class="settlement-meta">
+                                <strong>Daniel Peña</strong>
+                                <span>Cargo: <b id="settlement-role">Chofer</b></span>
+                                <span>Centro: <b id="settlement-center">D&R</b></span>
+                                <span>Ciclo: <b>Mayo 2026</b></span>
+                            </div>
+
+                            <div id="spreadsheet" class="spreadsheet"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="search" class="view">
+                    <div class="panel">
+                        <div class="panel-title cyan">Búsqueda Histórica</div>
+                        <div class="panel-body">
+                            <div class="search-grid">
+                                <label>Ciclo desde<select><option>Ciclo Abril 2026</option><option>Ciclo Mayo 2026</option></select></label>
+                                <label>Ciclo hasta<select><option>Ciclo Mayo 2026</option><option>Ciclo Junio 2026</option></select></label>
+                                <label>Centro<select><option>Todos</option><option>DR</option><option>SERVICES</option></select></label>
+                                <label>Cargo<select><option>Todos</option><option>Choferes</option><option>Auxiliares</option></select></label>
+                                <label>Trabajador<select><option>Daniel Peña</option><option>Andrés Moya</option><option>Luis Acevedo</option></select></label>
+                            </div>
+                            <div class="actions left">
+                                <button class="btn primary">Buscar</button>
+                                <button class="btn secondary">Exportar Excel</button>
+                                <button class="btn secondary">Exportar CSV</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-title dark">Resultado: Daniel Peña · Ciclo Mayo 2026</div>
+                        <div class="panel-body no-padding">
+                            <div id="spreadsheet-search" class="spreadsheet"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="users" class="view">
+                    <div class="panel">
+                        <div class="panel-title dark">Usuarios</div>
+                        <div class="panel-body">
+                            <div class="toolbar">
+                                <div>
+                                    <h3>Administración de usuarios</h3>
+                                    <p class="muted">Crear usuarios y asignar perfil de acceso.</p>
+                                </div>
+                                <button class="btn primary" id="new-user-btn">Nuevo Usuario</button>
+                            </div>
+
+                            <table class="erp-table">
+                                <thead>
+                                    <tr>
+                                        <th>Usuario</th>
+                                        <th>Nombre</th>
+                                        <th>Perfil</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>admin</td>
+                                        <td>Jose Tomas Videla</td>
+                                        <td><span class="tag green-tag">ADMIN</span></td>
+                                        <td>Activo</td>
+                                        <td><button class="btn secondary small-btn">Editar</button></td>
+                                    </tr>
+                                    <tr>
+                                        <td>consulta</td>
+                                        <td>Usuario Consulta</td>
+                                        <td><span class="tag blue-tag">USER</span></td>
+                                        <td>Activo</td>
+                                        <td><button class="btn secondary small-btn">Editar</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="user-form" class="panel hidden">
+                        <div class="panel-title cyan">Crear usuario</div>
+                        <div class="panel-body">
+                            <div class="form-grid">
+                                <label>Nombre
+                                    <input type="text" placeholder="Nombre completo" />
+                                </label>
+                                <label>Usuario
+                                    <input type="text" placeholder="usuario" />
+                                </label>
+                                <label>Perfil
+                                    <select>
+                                        <option>ADMIN</option>
+                                        <option>USER</option>
+                                    </select>
+                                </label>
+                                <label>Estado
+                                    <select>
+                                        <option>Activo</option>
+                                        <option>Inactivo</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div class="actions left">
+                                <button class="btn primary">Guardar Usuario</button>
+                                <button class="btn secondary" id="cancel-user-btn">Cancelar</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <footer>© 2026 UNISAN — Todos los derechos reservados</footer>
+        </section>
+    </section>
+
+    <div id="confirm-modal" class="modal hidden">
+        <div class="modal-box">
+            <h2>Confirmar cambios</h2>
+            <p>¿Está seguro de guardar estos cambios? Esta acción modificará la base de datos y recalculará la liquidación.</p>
+            <div class="actions">
+                <button id="cancel-save" class="btn secondary">Cancelar</button>
+                <button id="confirm-save" class="btn primary">Guardar cambios</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
