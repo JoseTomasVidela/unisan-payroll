@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UNISAN | Liquidaciones</title>
+    <link rel="stylesheet" href="styles.css?v=3c18" />
+</head>
+<body>
+    <section id="login-screen" class="login-screen">
+        <div class="login-card">
+            <div class="login-logo">UNISAN</div>
+            <h1>Acceso al modulo</h1>
+            <p>Liquidaciones</p>
+            <label>Usuario
+                <input id="login-username" type="text" autocomplete="username" />
+            </label>
+            <label>Contrasena
+                <input id="login-password" type="password" autocomplete="current-password" />
+            </label>
+            <button id="login-btn" class="btn primary full">Ingresar</button>
+            <small>Acceso seguro al modulo de liquidaciones</small>
+        </div>
+    </section>
+
+    <section id="app-shell" class="app-shell hidden">
+        <aside id="sidebar" class="sidebar">
+            <div class="logo">UNISAN</div>
+
+            <div class="profile">
+                <div class="avatar">JV</div>
+                <div class="profile-text">
+                    <strong>Jose Tomas Videla</strong>
+                    <span>Administrador</span>
+                </div>
+            </div>
+
+            <nav>
+                <button class="nav-item active" data-view="dashboard"><span>Dashboard</span></button>
+                <button class="nav-item" data-view="search"><span>Liquidaciones</span></button>
+
+                <div class="nav-label">Centro de costo</div>
+                <button class="nav-item" data-view="dr-drivers"><span>D&amp;R Choferes</span></button>
+                <button class="nav-item" data-view="dr-assistants"><span>D&amp;R Auxiliares</span></button>
+                <button class="nav-item" data-view="services-drivers"><span>Servicios Choferes</span></button>
+                <button class="nav-item" data-view="services-assistants"><span>Servicios Auxiliares</span></button>
+
+                <div class="nav-label">Gestion</div>
+                <button class="nav-item" data-view="rates"><span>Tarifas</span></button>
+                <button class="nav-item" data-view="workers"><span>Trabajadores</span></button>
+
+                <div class="nav-spacer"></div>
+                <div class="nav-label">Cuenta</div>
+                <button class="nav-item" data-view="users" id="users-nav"><span>Usuarios</span></button>
+                <button class="nav-item" id="logout-btn"><span>Cerrar sesion</span></button>
+            </nav>
+        </aside>
+
+        <section class="app">
+            <header class="topbar">
+                <button id="toggle-sidebar" class="hamburger">=</button>
+                <div class="top-icons">
+                    <div class="avatar small">JV</div>
+                    <span>Jose Tomas Videla</span>
+                </div>
+            </header>
+
+            <main class="main">
+                <div class="page-title">
+                    <h1 id="page-title">Dashboard</h1>
+                    <div class="breadcrumb">Inicio / <span id="breadcrumb">Dashboard</span></div>
+                </div>
+
+                <section id="dashboard" class="view active">
+                    <div class="grid two">
+                        <div class="panel">
+                            <div class="panel-title dark">Importar Excel D&amp;R</div>
+                            <div class="panel-body">
+                                <label class="file-input upload-card" for="dr-import-file">
+                                    <input id="dr-import-file" type="file" accept=".xlsx" />
+                                    <span class="upload-card-title">Haz clic para subir</span>
+                                    <span class="upload-card-browse">Browse</span>
+                                    <span id="dr-import-selected" class="upload-card-status">Formato permitido: .xlsx</span>
+                                </label>
+                                <button class="btn primary" id="dr-import-btn" disabled>Importar D&amp;R</button>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-title cyan">Importar Excel Servicios</div>
+                            <div class="panel-body">
+                                <label class="file-input upload-card" for="services-import-file">
+                                    <input id="services-import-file" type="file" accept=".xlsx" />
+                                    <span class="upload-card-title">Haz clic para subir</span>
+                                    <span class="upload-card-browse">Browse</span>
+                                    <span id="services-import-selected" class="upload-card-status">Formato permitido: .xlsx</span>
+                                </label>
+                                <button class="btn primary" id="services-import-btn" disabled>Importar Servicios</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel search-filter-panel">
+                        <div class="panel-title dark">Historial de Importaciones</div>
+                        <div class="panel-body">
+                            <table class="erp-table">
+                                <thead><tr><th>Fecha</th><th>Archivo</th><th>Tipo</th><th>Registros</th><th>Usuario</th></tr></thead>
+                                <tbody id="imports-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="liquidation-view" class="view">
+                    <div class="panel search-filter-panel">
+                        <div class="panel-title dark" id="liquidation-panel-title">Liquidaciones D&amp;R Choferes</div>
+                        <div class="panel-body">
+                            <div class="toolbar">
+                                <div class="filters">
+                                    <label>Ciclo
+                                        <select id="liquidation-cycle"></select>
+                                    </label>
+                                    <label>Trabajador
+                                        <select id="liquidation-employee"></select>
+                                    </label>
+                                </div>
+                                <div class="actions">
+                                    <button class="btn secondary" id="liquidation-export-excel-btn">Exportar Excel</button>
+                                    <button class="btn secondary" id="liquidation-export-csv-btn">Exportar CSV</button>
+                                </div>
+                            </div>
+
+                            <div class="settlement-meta">
+                                <strong id="settlement-employee-name"></strong>
+                                <span>Tarifa: <b id="settlement-role">Chofer</b></span>
+                                <span>Centro: <b id="settlement-center">D&amp;R</b></span>
+                                <span>Ciclo: <b id="settlement-cycle-name"></b></span>
+                            </div>
+
+                            <div id="spreadsheet" class="spreadsheet"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="search" class="view">
+                    <div class="panel search-filter-panel">
+                        <div class="panel-body">
+                            <div class="search-grid">
+                                <div>
+                                    <label>Ciclos</label>
+                                    <div class="multi-select">
+                                        <button type="button" id="search-cycle-summary" class="checklist-summary dropdown-toggle">Seleccione uno o más ciclos</button>
+                                        <div id="search-cycle" class="checklist-box dropdown-panel hidden"></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label>Trabajadores</label>
+                                    <div class="multi-select">
+                                        <button type="button" id="search-employee-summary" class="checklist-summary dropdown-toggle">Seleccione uno o más trabajadores</button>
+                                        <div id="search-employee" class="checklist-box dropdown-panel hidden"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="actions left">
+                                <button class="btn primary" id="search-btn">Buscar</button>
+                                <button class="btn secondary hidden" id="search-edit-btn">Editar</button>
+                                <button class="btn secondary hidden" id="search-adjustments-btn">Ajustes</button>
+                                <button class="btn primary hidden" id="search-save-btn">Guardar</button>
+                                <button class="btn secondary hidden" id="search-cancel-edit-btn">Cancelar</button>
+                                <button class="btn secondary" id="search-export-excel-btn">Exportar Excel</button>
+                                <button class="btn secondary" id="search-export-csv-btn">Exportar CSV</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-title dark" id="search-result-title">Liquidacion</div>
+                        <div class="panel-body no-padding">
+                            <div class="settlement-meta">
+                                <strong id="search-settlement-employee-name"></strong>
+                                <span>Vista: <b id="search-settlement-role"></b></span>
+                                <span>Centro: <b id="search-settlement-center"></b></span>
+                                <span>Ciclo: <b id="search-settlement-cycle-name"></b></span>
+                                <div id="search-single-actions" class="stack-settlement-actions hidden">
+                                    <button id="search-single-edit-btn" class="btn secondary small-btn">Editar</button>
+                                    <button id="search-single-adjustments-btn" class="btn secondary small-btn">Ajustes</button>
+                                </div>
+                            </div>
+                            <div id="spreadsheet-search" class="spreadsheet result-stack"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="rates" class="view">
+                    <div class="panel">
+                        <div class="panel-title dark">Tarifas</div>
+                        <div class="panel-body">
+                            <div class="toolbar">
+                                <div>
+                                    <h3>Tarifas vigentes por categoria</h3>
+                                    <p class="muted">Finanzas define estas tarifas y las liquidaciones las usan automaticamente.</p>
+                                </div>
+                                <div class="filters">
+                                    <label>Ciclo
+                                        <select id="rates-cycle"></select>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="context-tabs" id="rates-tabs">
+                                <button class="context-tab active" data-rates-context="dr-driver-old">D&amp;R Chofer Antiguo</button>
+                                <button class="context-tab" data-rates-context="dr-driver-new">D&amp;R Chofer Nuevo</button>
+                                <button class="context-tab" data-rates-context="dr-assistant-old">D&amp;R Auxiliar Antiguo</button>
+                                <button class="context-tab" data-rates-context="dr-assistant-new">D&amp;R Auxiliar Nuevo</button>
+                                <button class="context-tab" data-rates-context="services-driver-old">Servicios Chofer Antiguo</button>
+                                <button class="context-tab" data-rates-context="services-driver-new">Servicios Chofer Nuevo</button>
+                                <button class="context-tab" data-rates-context="services-assistant-old">Servicios Auxiliar Antiguo</button>
+                                <button class="context-tab" data-rates-context="services-assistant-new">Servicios Auxiliar Nuevo</button>
+                            </div>
+
+                            <table class="erp-table">
+                                <thead>
+                                    <tr>
+                                        <th>Concepto</th>
+                                        <th>Tarifa vigente</th>
+                                        <th>Vigencia desde</th>
+                                        <th>Vigencia hasta</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rates-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="workers" class="view">
+                    <div class="panel">
+                        <div class="panel-title dark">Trabajadores</div>
+                        <div class="panel-body">
+                            <div class="toolbar">
+                                <div>
+                                    <h3>Listado de trabajadores</h3>
+                                    <p class="muted">Administrar nombre y contrato Nuevo/Antiguo.</p>
+                                </div>
+                                <button class="btn primary" id="new-worker-btn">Nuevo Trabajador</button>
+                            </div>
+
+                            <table class="erp-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>Contrato</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="workers-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </section>
+
+                <section id="users" class="view">
+                    <div class="panel">
+                        <div class="panel-title dark">Usuarios</div>
+                        <div class="panel-body">
+                            <div class="toolbar">
+                                <div>
+                                    <h3>Administracion de usuarios</h3>
+                                    <p class="muted">Crear usuarios y asignar perfil de acceso.</p>
+                                </div>
+                                <button class="btn primary" id="new-user-btn">Nuevo Usuario</button>
+                            </div>
+
+                            <table class="erp-table">
+                                <thead>
+                                    <tr>
+                                        <th>Usuario</th>
+                                        <th>Nombre</th>
+                                        <th>Perfil</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="users-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="user-form" class="panel hidden">
+                        <div class="panel-title cyan">Crear usuario</div>
+                        <div class="panel-body">
+                            <div class="form-grid">
+                                <label>Nombre
+                                    <input type="text" placeholder="Nombre completo" />
+                                </label>
+                                <label>Usuario
+                                    <input type="text" placeholder="usuario" />
+                                </label>
+                                <label>Contrasena
+                                    <input type="password" placeholder="Minimo 10 caracteres" />
+                                </label>
+                                <label>Perfil
+                                    <select>
+                                        <option>ADMIN</option>
+                                        <option>USER</option>
+                                    </select>
+                                </label>
+                                <label>Estado
+                                    <select>
+                                        <option>Activo</option>
+                                        <option>Inactivo</option>
+                                    </select>
+                                </label>
+                            </div>
+                            <div class="actions left">
+                                <button class="btn primary" id="save-user-btn">Guardar Usuario</button>
+                                <button class="btn secondary" id="cancel-user-btn">Cancelar</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <footer>&copy; 2026 UNISAN - Todos los derechos reservados</footer>
+        </section>
+    </section>
+
+    <div id="confirm-modal" class="modal hidden">
+        <div class="modal-box">
+            <h2>Confirmar cambios</h2>
+            <p>Esta accion modificara la base de datos y recalculara la liquidacion.</p>
+            <div class="actions">
+                <button id="cancel-save" class="btn secondary">No</button>
+                <button id="confirm-save" class="btn primary">Si</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="rate-modal" class="modal hidden">
+        <div class="modal-box wide">
+            <h2>Editar tarifa</h2>
+            <div class="form-grid rate-form-grid">
+                <label>Concepto
+                    <input id="rate-modal-concept" type="text" readonly />
+                </label>
+                <label>Tarifa actual
+                    <input id="rate-modal-current" type="text" readonly />
+                </label>
+                <label>Nueva tarifa
+                    <input id="rate-modal-amount" type="number" min="0" step="0.0001" />
+                </label>
+                <label>Ciclo desde
+                    <select id="rate-modal-cycle"></select>
+                </label>
+            </div>
+            <div class="radio-group">
+                <label class="radio-option">
+                    <input type="radio" name="rate-apply-mode" value="SINGLE_CYCLE" checked />
+                    Aplicar solo a este ciclo
+                </label>
+                <label class="radio-option">
+                    <input type="radio" name="rate-apply-mode" value="FROM_CYCLE_FORWARD" />
+                    Aplicar desde este ciclo en adelante
+                </label>
+            </div>
+            <p class="muted">Se registrara auditoria y se usara la tarifa vigente resultante.</p>
+            <div class="actions">
+                <button id="rate-cancel-btn" class="btn secondary">Cancelar</button>
+                <button id="rate-save-btn" class="btn primary">Guardar tarifa</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="worker-modal" class="modal hidden">
+        <div class="modal-box worker-modal-box">
+            <h2>Trabajador</h2>
+            <div class="form-grid worker-form-grid">
+                <label>Nombre
+                    <input id="worker-name" type="text" placeholder="Nombre completo" />
+                </label>
+                <label>Contrato
+                    <select id="worker-contract">
+                        <option value="">Sin definir</option>
+                        <option value="OLD">Antiguo</option>
+                        <option value="NEW">Nuevo</option>
+                    </select>
+                </label>
+            </div>
+            <div class="actions">
+                <button id="cancel-worker-btn" class="btn secondary">Cancelar</button>
+                <button id="save-worker-btn" class="btn primary">Guardar trabajador</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="adjustments-modal" class="modal hidden">
+        <div class="modal-box extra-wide">
+            <h2>Ajustes manuales</h2>
+            <div class="form-grid adjustment-form-grid compact">
+                <label>Trabajador
+                    <input id="adjustment-worker" type="text" readonly />
+                </label>
+                <label>Ciclo
+                    <input id="adjustment-cycle" type="text" readonly />
+                </label>
+                <label>Tipo de ajuste
+                    <select id="adjustment-type">
+                        <option value="VACATION">Vacaciones</option>
+                        <option value="OUT_OF_PRODUCTION_BONUS">Bono fuera de produccion</option>
+                        <option value="BONUS">Bono</option>
+                        <option value="MANUAL_ADJUSTMENT">Ajuste manual</option>
+                        <option value="DISCOUNT">Descuento</option>
+                    </select>
+                </label>
+                <label>Cantidad
+                    <input id="adjustment-units" type="number" min="0" step="1" />
+                </label>
+                <label>Monto
+                    <input id="adjustment-amount" type="number" min="0" step="1" />
+                </label>
+                <label>Observaciones
+                    <input id="adjustment-observations" type="text" />
+                </label>
+            </div>
+            <div class="actions left">
+                <button id="adjustment-new-btn" class="btn secondary">Nuevo</button>
+                <button id="adjustment-save-btn" class="btn primary">Crear ajuste</button>
+                <button id="adjustment-delete-btn" class="btn secondary hidden">Eliminar ajuste</button>
+                <button id="adjustment-close-btn" class="btn secondary">Cerrar</button>
+            </div>
+            <div class="adjustment-layout">
+                <div>
+                    <h3>Ajustes registrados</h3>
+                    <table class="erp-table">
+                        <thead>
+                            <tr>
+                                <th>Tipo</th>
+                                <th>Cantidad</th>
+                                <th>Monto</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adjustments-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="search-edit-modal" class="modal hidden">
+        <div class="modal-box extra-wide editable-liquidation-modal">
+            <h2>Editar liquidacion</h2>
+            <div class="settlement-meta">
+                <strong id="search-edit-employee-name"></strong>
+                <span>Vista: <b id="search-edit-role">Consolidado</b></span>
+                <span>Centro: <b id="search-edit-center">D&amp;R + Servicios</b></span>
+                <span>Ciclo: <b id="search-edit-cycle-name"></b></span>
+            </div>
+            <div id="search-edit-spreadsheet" class="spreadsheet"></div>
+            <div class="actions">
+                <button id="search-edit-modal-cancel-btn" class="btn secondary">Cancelar</button>
+                <button id="search-edit-modal-save-btn" class="btn primary">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js?v=1"></script>
+    <script src="app.js?v=3c19"></script>
+</body>
+</html>

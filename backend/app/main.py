@@ -4,11 +4,13 @@ import json
 from contextlib import asynccontextmanager
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import func, inspect, select, text
 from sqlalchemy.orm import Session
 
@@ -181,6 +183,9 @@ app.add_middleware(
 )
 settlement_engine = SettlementEngine()
 concept_rate_service = ConceptRateService()
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+FRONTEND_BUILD_DIR = PROJECT_ROOT / "frontend" / "build"
+FRONTEND_ASSETS_DIR = FRONTEND_BUILD_DIR / "assets"
 
 
 def normalize_contract_type(contract_type: str | None) -> str | None:
@@ -392,6 +397,19 @@ def log_export(
         )
     )
     db.commit()
+
+
+def _frontend_asset_path(requested_path: str) -> Path | None:
+    if not requested_path:
+        return None
+    candidate = (FRONTEND_BUILD_DIR / requested_path).resolve()
+    try:
+        candidate.relative_to(FRONTEND_BUILD_DIR.resolve())
+    except ValueError:
+        return None
+    if candidate.is_file():
+        return candidate
+    return None
 
 
 @app.get("/api/health")
@@ -1358,3 +1376,29 @@ async def import_excel(
         errors=parsed.errors,
         possible_reimports_confirmed=len(possible_reimports),
     )
+
+
+if FRONTEND_ASSETS_DIR.exists():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_ASSETS_DIR), name="frontend-assets")
+
+
+@app.get("/", include_in_schema=False)
+def frontend_index() -> FileResponse:
+    index_file = FRONTEND_BUILD_DIR / "index.html"
+    if not index_file.exists():
+        raise HTTPException(status_code=404, detail="Frontend publicado no encontrado.")
+    return FileResponse(index_file)
+
+
+@app.get("/{full_path:path}", include_in_schema=False)
+def frontend_spa_fallback(full_path: str) -> Response:
+    blocked_prefixes = ("api/", "docs", "redoc", "openapi.json")
+    if full_path in {"api", "docs", "redoc", "openapi.json"} or full_path.startswith(blocked_prefixes):
+        raise HTTPException(status_code=404, detail="No encontrado.")
+    asset_path = _frontend_asset_path(full_path)
+    if asset_path is not None:
+        return FileResponse(asset_path)
+    index_file = FRONTEND_BUILD_DIR / "index.html"
+    if not index_file.exists():
+        raise HTTPException(status_code=404, detail="Frontend publicado no encontrado.")
+    return FileResponse(index_file)
