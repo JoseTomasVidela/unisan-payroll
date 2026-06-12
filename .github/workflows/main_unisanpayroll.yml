@@ -37,6 +37,7 @@ jobs:
           mkdir -p deploy/backend
           mkdir -p deploy/frontend
           cp -R backend/. deploy/backend/
+          cp backend/requirements.txt deploy/requirements.txt
           if [ -d frontend/build ]; then cp -R frontend/build deploy/frontend/build; fi
 
       - name: Upload artifact for deployment jobs
