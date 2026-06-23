@@ -47,6 +47,26 @@ body {
     color: #9aa0a6;
 }
 
+.login-options {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 6px 0 14px;
+}
+
+.login-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #4b5760;
+}
+
+.login-option input {
+    margin: 0;
+}
+
 .app-shell {
     height: 100vh;
     display: flex;
@@ -243,6 +263,13 @@ nav {
     gap: 22px;
 }
 
+.grid.three {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 22px;
+    align-items: start;
+}
+
 .panel {
     background: white;
     border-radius: 4px;
@@ -378,7 +405,7 @@ input {
 
 .upload-card.has-file .upload-card-status::before,
 .upload-card.is-imported .upload-card-status::before {
-    content: "✔ ";
+    content: "\2714  ";
     color: #2aa44f;
     font-weight: 800;
 }
@@ -526,6 +553,12 @@ input {
     font-weight: 400;
 }
 
+.checklist-item-all {
+    padding-bottom: 6px;
+    border-bottom: 1px solid #e7edf1;
+    font-weight: 700;
+}
+
 .checklist-empty {
     color: #7f8c96;
     font-style: italic;
@@ -572,6 +605,99 @@ input {
 .muted {
     color: #7f8c96;
     margin-top: -8px;
+}
+
+.holiday-panel {
+    display: grid;
+    gap: 10px;
+    min-height: 166px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+.holiday-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.holiday-calendar {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+}
+
+.holiday-weekday,
+.holiday-day {
+    border-radius: 6px;
+    border: 1px solid #d9e0e6;
+    background: #fff;
+    padding: 4px;
+    min-height: 40px;
+}
+
+.holiday-weekday {
+    min-height: auto;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    background: #f3f7fa;
+    padding: 5px 2px;
+}
+
+.holiday-day.empty {
+    background: #f8fafc;
+    border-style: dashed;
+}
+
+.holiday-day-number {
+    font-size: 12px;
+    font-weight: 700;
+    color: #31414f;
+    margin-bottom: 2px;
+}
+
+.holiday-day.holiday-active {
+    background: #fff8df;
+    border-color: #e4d18b;
+}
+
+.holiday-day.today {
+    box-shadow: inset 0 0 0 1px #3f98bf;
+}
+
+.holiday-badges {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 12px;
+}
+
+.holiday-badge {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    padding: 0;
+    background: #c9b15f;
+    color: transparent;
+    overflow: hidden;
+    font-size: 0;
+}
+
+.holiday-form-grid {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+}
+
+.holiday-active-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.holiday-actions {
+    display: flex;
+    justify-content: flex-end;
 }
 
 .context-tabs {
@@ -692,6 +818,11 @@ input {
 .sheet-table .date-head { height: 82px; }
 .sheet-table .status-head { height: 90px; }
 
+.sheet-table .holiday-head,
+.sheet-table .holiday-cell {
+    background: #fff6dc;
+}
+
 .sheet-table .blue { background: #bdd7ee; }
 
 .sheet-table .section {
@@ -748,6 +879,30 @@ input {
 
 .modal-box.extra-wide {
     width: min(1320px, 97vw);
+}
+
+.status-modal-box {
+    width: min(460px, 92vw);
+    text-align: center;
+}
+
+.status-spinner {
+    width: 34px;
+    height: 34px;
+    margin: 0 auto 14px;
+    border: 4px solid #d9e7ef;
+    border-top-color: #3f98bf;
+    border-radius: 50%;
+    animation: status-spin 0.8s linear infinite;
+}
+
+.status-spinner.hidden {
+    display: none !important;
+}
+
+@keyframes status-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 .editable-liquidation-modal {

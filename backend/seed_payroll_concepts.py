@@ -113,7 +113,9 @@ DRIVER_SERVICES = [
     item("WEEKEND_DRYING", "Secado Fin de Semana", "weekend_drying_qty", "SERVICES", "DRIVER", 13, "551.4008"),
     item("SATURDAY_AFTER_1600", "Sabado > 16:00", "saturday_after_1600_qty", "SERVICES", "DRIVER", 14, "10025.4695"),
     item("SUNDAY_AFTER_1600", "Domingo > 16:00", "sunday_after_1600_qty", "SERVICES", "DRIVER", 15, "11278.6532"),
-    item("RILES_SUCTION", "Succión Riles (M3)", "riles_suction_flag", "SERVICES", "DRIVER", 16, "2527.4700"),
+    item("SATURDAY_WEEK_2", "Sabado Semana 02", "saturday_week_2_qty", "SERVICES", "DRIVER", 16, "11905.2450"),
+    item("SUNDAY_WEEK_2", "Domingo Semana 02", "sunday_week_2_qty", "SERVICES", "DRIVER", 17, "15038.2043"),
+    item("RILES_SUCTION", "Succión Riles (M3)", "riles_suction_flag", "SERVICES", "DRIVER", 18, "2527.4700"),
 ]
 
 ASSISTANT_SERVICES = [
@@ -132,7 +134,9 @@ ASSISTANT_SERVICES = [
     item("WEEKEND_DRYING", "Secado Fin de Semana", "weekend_drying_qty", "SERVICES", "ASSISTANT", 13, "275.3100"),
     item("SATURDAY_AFTER_1600", "Sabado > 16:00", "saturday_after_1600_qty", "SERVICES", "ASSISTANT", 14, "8772.6600"),
     item("SUNDAY_AFTER_1600", "Domingo > 16:00", "sunday_after_1600_qty", "SERVICES", "ASSISTANT", 15, "10025.0100"),
-    item("RILES_SUCTION", "Succión Riles (M3)", "riles_suction_flag", "SERVICES", "ASSISTANT", 16, "1253.3850"),
+    item("SATURDAY_WEEK_2", "Sabado Semana 02", "saturday_week_2_qty", "SERVICES", "ASSISTANT", 16, "11905.6050"),
+    item("SUNDAY_WEEK_2", "Domingo Semana 02", "sunday_week_2_qty", "SERVICES", "ASSISTANT", 17, "15038.5500"),
+    item("RILES_SUCTION", "Succión Riles (M3)", "riles_suction_flag", "SERVICES", "ASSISTANT", 18, "1253.3850"),
 ]
 
 SEED_ITEMS = DRIVER_DR + ASSISTANT_DR + DRIVER_SERVICES + ASSISTANT_SERVICES

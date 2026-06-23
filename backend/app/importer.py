@@ -15,6 +15,7 @@ from openpyxl.utils.datetime import from_excel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .employee_names import names_refer_to_same_person
 from .models import Employee, PayrollCycle, PayrollImport, PayrollRecord, User
 
 INVALID_PERSON_VALUES = {"", "0", "n/a", "sin auxiliar"}
@@ -485,17 +486,23 @@ def persist_import(
         db.flush()
         imports_by_cycle[cycle_id] = payroll_import
 
-    employee_map: dict[tuple[str, str], Employee] = {}
+    employees = list(db.scalars(select(Employee).order_by(Employee.id)).all())
     contract_map: dict[str, str | None] = {}
-    for employee in db.scalars(select(Employee)).all():
-        employee_map[(employee.employee_name.casefold(), employee.role_type)] = employee
+    for employee in employees:
         contract_map.setdefault(employee.employee_name.casefold(), employee.contract_type)
 
     created_employees = 0
     for candidate in parsed.candidates:
         values = candidate.values
-        key = (values["source_employee_name"].casefold(), values["role_type"])
-        employee = employee_map.get(key)
+        employee = next(
+            (
+                item
+                for item in employees
+                if item.role_type == values["role_type"]
+                and names_refer_to_same_person(item.employee_name, values["source_employee_name"])
+            ),
+            None,
+        )
         if employee is None:
             employee = Employee(
                 employee_name=values["source_employee_name"],
@@ -504,7 +511,7 @@ def persist_import(
             )
             db.add(employee)
             db.flush()
-            employee_map[key] = employee
+            employees.append(employee)
             contract_map.setdefault(values["source_employee_name"].casefold(), employee.contract_type)
             created_employees += 1
         db.add(

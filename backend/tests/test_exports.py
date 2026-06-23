@@ -37,6 +37,7 @@ def test_export_individual_liquidation_excel(client, db_factory):
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     assert "attachment;" in response.headers["content-disposition"]
+    assert 'filename="Chofer Uno-Junio 2026.xlsx"' in response.headers["content-disposition"]
 
     archive = ZipFile(BytesIO(response.content))
     worksheet_xml = archive.read("xl/worksheets/sheet1.xml").decode("utf-8")
@@ -67,6 +68,32 @@ def test_export_individual_liquidation_csv(client, db_factory):
     assert "Evento,5,5,25" in body
     assert "TOTAL A PAGAR,,," in body
     assert "PRODUCCION TOTAL,,," in body
+
+
+def test_export_individual_liquidation_pdf(client, db_factory):
+    driver_id, _ = seed_settlement(db_factory)
+
+    response = client.get(
+        (
+            f"/api/exports/settlement?cycle_id=1&employee_id={driver_id}"
+            "&cost_center=DR&role_type=DRIVER&file_format=pdf"
+        ),
+        headers=admin_headers(client),
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/pdf")
+    assert response.content.startswith(b"%PDF-")
+    assert 'filename="Chofer Uno-Junio 2026.pdf"' in response.headers["content-disposition"]
+    assert b"MOVILES DE CHILE S.A." in response.content
+    assert b"ANEXO DE LIQUIDACION DE SUELDO MES DE JUNIO 2026" in response.content
+    assert b"Articulo 54 bis inciso tercero del Codigo del Trabajo" in response.content
+    assert b"Chofer Uno" in response.content
+    assert b"DESCRIPCION" in response.content
+    assert b"A PAGAR" in response.content
+    assert b"SEMANA CORRIDA" in response.content
+    assert b"TOTAL" in response.content
+    assert b"FIRMA TRABAJADOR" in response.content
 
 
 def test_export_from_search_uses_consolidated_scope_and_logs(client, db_factory):

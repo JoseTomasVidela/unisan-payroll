@@ -49,6 +49,8 @@ REQUIRED_TABLE_COLUMNS = {
             "employee_name",
             "role_type",
             "contract_type",
+            "rut",
+            "email",
         }
     ),
     "payroll_imports": frozenset(

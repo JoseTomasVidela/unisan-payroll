@@ -98,6 +98,9 @@ class SearchEmployeeOptionResponse(BaseModel):
     id: int
     employee_name: str
     contract_type: str | None = None
+    rut: str | None = None
+    email: str | None = None
+    cargo: str | None = None
 
 
 class EmployeeOptionResponse(BaseModel):
@@ -106,27 +109,41 @@ class EmployeeOptionResponse(BaseModel):
     id: int
     employee_name: str
     contract_type: str | None = None
+    rut: str | None = None
+    email: str | None = None
+    cargo: str | None = None
 
 
 class WorkerListItemResponse(BaseModel):
     id: int
     employee_name: str
     contract_type: str | None
+    rut: str | None
+    email: str | None
+    cargo: str | None
 
 
 class WorkerCreateRequest(BaseModel):
     employee_name: str = Field(min_length=1, max_length=180)
     contract_type: str | None = Field(default=None, pattern="^(NEW|OLD)?$")
+    rut: str | None = Field(default=None, max_length=32)
+    email: str | None = Field(default=None, max_length=255)
+    cargo: str | None = Field(default=None, max_length=180)
 
 
 class WorkerUpdateRequest(BaseModel):
     contract_type: str | None = Field(default=None, pattern="^(NEW|OLD)?$")
+    rut: str | None = Field(default=None, max_length=32)
+    email: str | None = Field(default=None, max_length=255)
+    cargo: str | None = Field(default=None, max_length=180)
 
 
 class SettlementDateResponse(BaseModel):
     date: date
     label: str
     weekday: str
+    is_holiday: bool = False
+    holiday_names: list[str] = []
 
 
 class SettlementStatusResponse(BaseModel):
@@ -163,6 +180,9 @@ class SettlementEmployeeResponse(BaseModel):
     id: int
     employee_name: str
     contract_type: str | None = None
+    rut: str | None = None
+    email: str | None = None
+    cargo: str | None = None
 
 
 class SettlementResponse(BaseModel):
@@ -177,6 +197,30 @@ class SettlementResponse(BaseModel):
     total_to_pay: Decimal
     week_corrida: Decimal
     production_total: Decimal
+
+
+class HolidayResponse(BaseModel):
+    id: int | None = None
+    holiday_date: date
+    holiday_name: str
+    holiday_scope: str
+    active: bool
+    is_default: bool
+    editable: bool
+
+
+class HolidayCreateRequest(BaseModel):
+    holiday_date: date
+    holiday_name: str = Field(min_length=1, max_length=200)
+    holiday_scope: str = Field(pattern="^(CHILE|WORLD|CUSTOM)$")
+    active: bool = True
+
+
+class HolidayUpdateRequest(BaseModel):
+    holiday_date: date
+    holiday_name: str = Field(min_length=1, max_length=200)
+    holiday_scope: str = Field(pattern="^(CHILE|WORLD|CUSTOM)$")
+    active: bool = True
 
 
 class ManualAdjustmentAuditResponse(BaseModel):
@@ -210,7 +254,7 @@ class ManualAdjustmentCreateRequest(BaseModel):
     cycle_id: int
     employee_id: int
     adjustment_type: str = Field(
-        pattern="^(VACATION|OUT_OF_PRODUCTION_BONUS|BONUS|MANUAL_ADJUSTMENT|DISCOUNT)$"
+        pattern="^(VACATION|BONUS|MANUAL_ADJUSTMENT)$"
     )
     description: str | None = Field(default=None, max_length=200)
     units: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=4)
@@ -220,7 +264,7 @@ class ManualAdjustmentCreateRequest(BaseModel):
 
 class ManualAdjustmentUpdateRequest(BaseModel):
     adjustment_type: str = Field(
-        pattern="^(VACATION|OUT_OF_PRODUCTION_BONUS|BONUS|MANUAL_ADJUSTMENT|DISCOUNT)$"
+        pattern="^(VACATION|BONUS|MANUAL_ADJUSTMENT)$"
     )
     description: str | None = Field(default=None, max_length=200)
     units: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=4)

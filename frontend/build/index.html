@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>UNISAN | Liquidaciones</title>
-    <link rel="stylesheet" href="styles.css?v=3c18" />
+    <link rel="stylesheet" href="styles.css?v=3c21" />
 </head>
 <body>
     <section id="login-screen" class="login-screen">
@@ -18,6 +18,16 @@
             <label>Contrasena
                 <input id="login-password" type="password" autocomplete="current-password" />
             </label>
+            <div class="login-options">
+                <label class="login-option">
+                    <input id="login-remember" type="checkbox" />
+                    <span>Recuérdame</span>
+                </label>
+                <label class="login-option">
+                    <input id="login-show-password" type="checkbox" />
+                    <span>Mostrar clave</span>
+                </label>
+            </div>
             <button id="login-btn" class="btn primary full">Ingresar</button>
             <small>Acceso seguro al modulo de liquidaciones</small>
         </div>
@@ -72,7 +82,7 @@
                 </div>
 
                 <section id="dashboard" class="view active">
-                    <div class="grid two">
+                    <div class="grid three">
                         <div class="panel">
                             <div class="panel-title dark">Importar Excel D&amp;R</div>
                             <div class="panel-body">
@@ -96,6 +106,21 @@
                                     <span id="services-import-selected" class="upload-card-status">Formato permitido: .xlsx</span>
                                 </label>
                                 <button class="btn primary" id="services-import-btn" disabled>Importar Servicios</button>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-title dark">Definir Feriados</div>
+                            <div class="panel-body holiday-panel">
+                                <div class="holiday-toolbar">
+                                    <button class="btn secondary small-btn" id="holiday-prev-month-btn">Mes anterior</button>
+                                    <strong id="holiday-month-label">Mes actual</strong>
+                                    <button class="btn secondary small-btn" id="holiday-next-month-btn">Mes siguiente</button>
+                                </div>
+                                <div id="holiday-calendar" class="holiday-calendar"></div>
+                                <div class="holiday-actions">
+                                    <button class="btn primary small-btn" id="holiday-new-btn">Nuevo feriado</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -126,7 +151,9 @@
                                 </div>
                                 <div class="actions">
                                     <button class="btn secondary" id="liquidation-export-excel-btn">Exportar Excel</button>
-                                    <button class="btn secondary" id="liquidation-export-csv-btn">Exportar CSV</button>
+                                    <button class="btn secondary" id="liquidation-export-pdf-btn">Exportar PDF</button>
+                                    <button class="btn secondary" id="liquidation-email-btn">Enviar por Email</button>
+                                    <button class="btn secondary" id="liquidation-softland-btn">Exportar Softland</button>
                                 </div>
                             </div>
 
@@ -168,7 +195,9 @@
                                 <button class="btn primary hidden" id="search-save-btn">Guardar</button>
                                 <button class="btn secondary hidden" id="search-cancel-edit-btn">Cancelar</button>
                                 <button class="btn secondary" id="search-export-excel-btn">Exportar Excel</button>
-                                <button class="btn secondary" id="search-export-csv-btn">Exportar CSV</button>
+                                <button class="btn secondary" id="search-export-pdf-btn">Exportar PDF</button>
+                                <button class="btn secondary" id="search-email-btn">Enviar por Email</button>
+                                <button class="btn secondary" id="search-softland-btn">Exportar Softland</button>
                             </div>
                         </div>
                     </div>
@@ -250,6 +279,9 @@
                                 <thead>
                                     <tr>
                                         <th>Nombre</th>
+                                        <th>Cargo</th>
+                                        <th>RUT</th>
+                                        <th>Email</th>
                                         <th>Contrato</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -293,24 +325,24 @@
                         <div class="panel-body">
                             <div class="form-grid">
                                 <label>Nombre
-                                    <input type="text" placeholder="Nombre completo" />
+                                    <input id="user-full-name" type="text" placeholder="Nombre completo" />
                                 </label>
                                 <label>Usuario
-                                    <input type="text" placeholder="usuario" />
+                                    <input id="user-username" type="text" placeholder="usuario" />
                                 </label>
                                 <label>Contrasena
-                                    <input type="password" placeholder="Minimo 10 caracteres" />
+                                    <input id="user-password" type="password" placeholder="Minimo 10 caracteres" />
                                 </label>
                                 <label>Perfil
-                                    <select>
-                                        <option>ADMIN</option>
-                                        <option>USER</option>
+                                    <select id="user-role">
+                                        <option value="ADMIN">ADMIN</option>
+                                        <option value="USER">USER</option>
                                     </select>
                                 </label>
                                 <label>Estado
-                                    <select>
-                                        <option>Activo</option>
-                                        <option>Inactivo</option>
+                                    <select id="user-active">
+                                        <option value="true">Activo</option>
+                                        <option value="false">Inactivo</option>
                                     </select>
                                 </label>
                             </div>
@@ -387,6 +419,15 @@
                         <option value="NEW">Nuevo</option>
                     </select>
                 </label>
+                <label>RUT
+                    <input id="worker-rut" type="text" placeholder="12.345.678-9" />
+                </label>
+                <label>Email
+                    <input id="worker-email" type="email" placeholder="trabajador@empresa.cl" />
+                </label>
+                <label>Cargo
+                    <input id="worker-cargo" type="text" placeholder="Cargo" />
+                </label>
             </div>
             <div class="actions">
                 <button id="cancel-worker-btn" class="btn secondary">Cancelar</button>
@@ -408,10 +449,8 @@
                 <label>Tipo de ajuste
                     <select id="adjustment-type">
                         <option value="VACATION">Vacaciones</option>
-                        <option value="OUT_OF_PRODUCTION_BONUS">Bono fuera de produccion</option>
                         <option value="BONUS">Bono</option>
                         <option value="MANUAL_ADJUSTMENT">Ajuste manual</option>
-                        <option value="DISCOUNT">Descuento</option>
                     </select>
                 </label>
                 <label>Cantidad
@@ -467,7 +506,40 @@
         </div>
     </div>
 
+    <div id="holiday-modal" class="modal hidden">
+        <div class="modal-box">
+            <h2>Feriado</h2>
+            <div class="form-grid holiday-form-grid">
+                <label>Fecha
+                    <input id="holiday-date" type="date" />
+                </label>
+                <label>Nombre
+                    <input id="holiday-name" type="text" placeholder="Nombre del feriado" />
+                </label>
+                <label class="holiday-active-toggle">
+                    <span>Activo</span>
+                    <input id="holiday-active" type="checkbox" checked />
+                </label>
+            </div>
+            <div class="actions">
+                <button id="holiday-cancel-btn" class="btn secondary">Cancelar</button>
+                <button id="holiday-save-btn" class="btn primary">Guardar feriado</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="status-modal" class="modal hidden">
+        <div class="modal-box status-modal-box">
+            <div id="status-spinner" class="status-spinner"></div>
+            <h2 id="status-title">Procesando</h2>
+            <p id="status-message" class="muted">Espere un momento...</p>
+            <div class="actions">
+                <button id="status-close-btn" class="btn primary hidden">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
     <script src="config.js?v=1"></script>
-    <script src="app.js?v=3c19"></script>
+    <script src="app.js?v=3c27"></script>
 </body>
 </html>

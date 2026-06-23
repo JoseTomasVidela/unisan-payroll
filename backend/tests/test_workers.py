@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
+from app.employee_names import names_refer_to_same_person
 from app.models import Employee, PayrollConcept, PayrollConceptRate, PayrollImport, PayrollRecord, User
 from conftest import login
 
@@ -19,7 +20,7 @@ def user_headers(client):
     return {"Authorization": f"Bearer {token}"}
 
 
-def test_workers_list_groups_same_name_and_admin_can_update_contract(client, db_factory):
+def test_workers_list_groups_same_name_and_admin_can_update_contract_and_contact_data(client, db_factory):
     with db_factory() as db:
         db.add_all(
             [
@@ -36,6 +37,9 @@ def test_workers_list_groups_same_name_and_admin_can_update_contract(client, db_
             "id": listed.json()[0]["id"],
             "employee_name": "Alejandro Escobar",
             "contract_type": None,
+            "rut": None,
+            "email": None,
+            "cargo": None,
         }
     ]
 
@@ -43,23 +47,83 @@ def test_workers_list_groups_same_name_and_admin_can_update_contract(client, db_
     updated = client.put(
         f"/api/workers/{worker_id}",
         headers=admin_headers(client),
-        json={"contract_type": "OLD"},
+        json={
+            "contract_type": "OLD",
+            "rut": "12.345.678-9",
+            "email": "alejandro@unisan.cl",
+            "cargo": "Chofer",
+        },
     )
     assert updated.status_code == 200
+    assert updated.json()["rut"] == "12.345.678-9"
+    assert updated.json()["email"] == "alejandro@unisan.cl"
+    assert updated.json()["cargo"] == "Chofer"
     with db_factory() as db:
         employees = db.scalars(
             select(Employee).where(Employee.employee_name == "Alejandro Escobar").order_by(Employee.id)
         ).all()
         assert [employee.contract_type for employee in employees] == ["OLD", "OLD"]
+        assert [employee.rut for employee in employees] == ["12.345.678-9", "12.345.678-9"]
+        assert [employee.email for employee in employees] == [
+            "alejandro@unisan.cl",
+            "alejandro@unisan.cl",
+        ]
+        assert [employee.cargo for employee in employees] == ["Chofer", "Chofer"]
+
+
+def test_workers_list_prefers_full_name_when_available(client, db_factory):
+    with db_factory() as db:
+        db.add(
+            Employee(
+                employee_name="Alejandro Escobar",
+                first_name="Alejandro",
+                middle_name="Antonio",
+                paternal_surname="Escobar",
+                maternal_surname="Osorio",
+                role_type="UNASSIGNED",
+            )
+        )
+        db.commit()
+
+    listed = client.get("/api/workers", headers=admin_headers(client))
+    assert listed.status_code == 200
+    assert listed.json()[0]["employee_name"] == "Alejandro Antonio Escobar Osorio"
 
 
 def test_user_cannot_edit_workers(client):
     response = client.post(
         "/api/workers",
         headers=user_headers(client),
-        json={"employee_name": "Nuevo Trabajador", "contract_type": "NEW"},
+        json={
+            "employee_name": "Nuevo Trabajador",
+            "contract_type": "NEW",
+            "rut": "11.111.111-1",
+            "email": "nuevo@unisan.cl",
+            "cargo": "Cargo prueba",
+        },
     )
     assert response.status_code == 403
+
+
+def test_admin_can_delete_worker_without_historical_records(client, db_factory):
+    with db_factory() as db:
+        worker = Employee(employee_name="Temporal Sin Uso", role_type="UNASSIGNED")
+        db.add(worker)
+        db.commit()
+        worker_id = worker.id
+
+    response = client.delete(f"/api/workers/{worker_id}", headers=admin_headers(client))
+    assert response.status_code == 204
+
+    with db_factory() as db:
+        assert db.get(Employee, worker_id) is None
+
+
+def test_workers_name_matching_accepts_surname_first_master_data(client, db_factory):
+    assert names_refer_to_same_person(
+        "Alejandro Escobar",
+        "Escobar Osorio Alejandro Antonio",
+    )
 
 
 def test_settlement_prefers_contract_specific_rate_over_legacy_rate(client, db_factory):

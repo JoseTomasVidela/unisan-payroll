@@ -1,4 +1,4 @@
-const loginScreen = document.getElementById("login-screen");
+﻿const loginScreen = document.getElementById("login-screen");
 const appShell = document.getElementById("app-shell");
 const loginBtn = document.getElementById("login-btn");
 const logoutBtn = document.getElementById("logout-btn");
@@ -24,8 +24,15 @@ const userForm = document.getElementById("user-form");
 const usersNav = document.getElementById("users-nav");
 const usersTableBody = document.getElementById("users-table-body");
 const saveUserBtn = document.getElementById("save-user-btn");
+const userFullName = document.getElementById("user-full-name");
+const userUsername = document.getElementById("user-username");
+const userPassword = document.getElementById("user-password");
+const userRole = document.getElementById("user-role");
+const userActive = document.getElementById("user-active");
 const loginUsername = document.getElementById("login-username");
 const loginPassword = document.getElementById("login-password");
+const loginRemember = document.getElementById("login-remember");
+const loginShowPassword = document.getElementById("login-show-password");
 const drImportFile = document.getElementById("dr-import-file");
 const drImportBtn = document.getElementById("dr-import-btn");
 const drImportSelected = document.getElementById("dr-import-selected");
@@ -35,6 +42,11 @@ const servicesImportBtn = document.getElementById("services-import-btn");
 const servicesImportSelected = document.getElementById("services-import-selected");
 const servicesImportCard = servicesImportFile.closest(".upload-card");
 const importsTableBody = document.getElementById("imports-table-body");
+const holidayCalendar = document.getElementById("holiday-calendar");
+const holidayMonthLabel = document.getElementById("holiday-month-label");
+const holidayPrevMonthBtn = document.getElementById("holiday-prev-month-btn");
+const holidayNextMonthBtn = document.getElementById("holiday-next-month-btn");
+const holidayNewBtn = document.getElementById("holiday-new-btn");
 const liquidationCycle = document.getElementById("liquidation-cycle");
 const liquidationEmployee = document.getElementById("liquidation-employee");
 const settlementEmployeeName = document.getElementById("settlement-employee-name");
@@ -49,7 +61,9 @@ const searchAdjustmentsBtn = document.getElementById("search-adjustments-btn");
 const searchSaveBtn = document.getElementById("search-save-btn");
 const searchCancelEditBtn = document.getElementById("search-cancel-edit-btn");
 const searchExportExcelBtn = document.getElementById("search-export-excel-btn");
-const searchExportCsvBtn = document.getElementById("search-export-csv-btn");
+const searchExportPdfBtn = document.getElementById("search-export-pdf-btn");
+const searchEmailBtn = document.getElementById("search-email-btn");
+const searchSoftlandBtn = document.getElementById("search-softland-btn");
 const searchResultTitle = document.getElementById("search-result-title");
 const searchSettlementEmployeeName = document.getElementById("search-settlement-employee-name");
 const searchSettlementCycleName = document.getElementById("search-settlement-cycle-name");
@@ -59,7 +73,9 @@ const searchSingleActions = document.getElementById("search-single-actions");
 const searchSingleEditBtn = document.getElementById("search-single-edit-btn");
 const searchSingleAdjustmentsBtn = document.getElementById("search-single-adjustments-btn");
 const liquidationExportExcelBtn = document.getElementById("liquidation-export-excel-btn");
-const liquidationExportCsvBtn = document.getElementById("liquidation-export-csv-btn");
+const liquidationExportPdfBtn = document.getElementById("liquidation-export-pdf-btn");
+const liquidationEmailBtn = document.getElementById("liquidation-email-btn");
+const liquidationSoftlandBtn = document.getElementById("liquidation-softland-btn");
 const ratesCycle = document.getElementById("rates-cycle");
 const ratesTableBody = document.getElementById("rates-table-body");
 const ratesTabs = document.getElementById("rates-tabs");
@@ -75,6 +91,9 @@ const newWorkerBtn = document.getElementById("new-worker-btn");
 const workerModal = document.getElementById("worker-modal");
 const workerName = document.getElementById("worker-name");
 const workerContract = document.getElementById("worker-contract");
+const workerRut = document.getElementById("worker-rut");
+const workerEmail = document.getElementById("worker-email");
+const workerCargo = document.getElementById("worker-cargo");
 const saveWorkerBtn = document.getElementById("save-worker-btn");
 const cancelWorkerBtn = document.getElementById("cancel-worker-btn");
 const adjustmentsModal = document.getElementById("adjustments-modal");
@@ -95,6 +114,17 @@ const searchEditCycleName = document.getElementById("search-edit-cycle-name");
 const searchEditSpreadsheet = document.getElementById("search-edit-spreadsheet");
 const searchEditModalCancelBtn = document.getElementById("search-edit-modal-cancel-btn");
 const searchEditModalSaveBtn = document.getElementById("search-edit-modal-save-btn");
+const holidayModal = document.getElementById("holiday-modal");
+const holidayDateInput = document.getElementById("holiday-date");
+const holidayNameInput = document.getElementById("holiday-name");
+const holidayActiveInput = document.getElementById("holiday-active");
+const holidayCancelBtn = document.getElementById("holiday-cancel-btn");
+const holidaySaveBtn = document.getElementById("holiday-save-btn");
+const statusModal = document.getElementById("status-modal");
+const statusSpinner = document.getElementById("status-spinner");
+const statusTitle = document.getElementById("status-title");
+const statusMessage = document.getElementById("status-message");
+const statusCloseBtn = document.getElementById("status-close-btn");
 
 let editMode = false;
 let currentUser = null;
@@ -111,18 +141,22 @@ let activeSheetCycleName = settlementCycleName;
 let activeSheetContext = null;
 let manualAdjustments = [];
 let selectedAdjustmentId = null;
+let contextEmployeesCache = [];
+let holidayMonthCursor = new Date();
+holidayMonthCursor = new Date(holidayMonthCursor.getFullYear(), holidayMonthCursor.getMonth(), 1);
+let holidayEntries = [];
+let editingHolidayId = null;
 const configuredApiBaseUrl = window.__PAYROLL_CONFIG__?.apiBaseUrl?.trim();
 const defaultApiBaseUrl = ["127.0.0.1", "localhost"].includes(window.location.hostname)
     ? "http://127.0.0.1:8010/api"
     : `${window.location.origin}/payroll/api`;
 const apiBaseUrl = (configuredApiBaseUrl || defaultApiBaseUrl).replace(/\/$/, "");
+const rememberedUsernameKey = "payroll_remembered_username";
 
 const adjustmentTypeLabels = {
     VACATION: "Vacaciones",
-    OUT_OF_PRODUCTION_BONUS: "Bono fuera de produccion",
     BONUS: "Bono",
-    MANUAL_ADJUSTMENT: "Ajuste manual",
-    DISCOUNT: "Descuento"
+    MANUAL_ADJUSTMENT: "Ajuste manual"
 };
 
 
@@ -138,6 +172,38 @@ function escapeHtml(value) {
 
 function adjustmentTypeLabel(value) {
     return adjustmentTypeLabels[value] || value || "";
+}
+
+function formatStatusLabel(value) {
+    if (!value) return "";
+    const labels = {
+        "libre compensatorio": "Libre Comp.",
+        "sin produccion": "Sin Prod.",
+        "sin producción": "Sin Prod.",
+        "inasistencia": "Inasis.",
+        "vacaciones": "Vac.",
+        "descanso": "Desc.",
+        "feriado": "Feriado",
+        "licencia": "Licencia"
+    };
+    return String(value)
+        .split("/")
+        .map(part => part.trim())
+        .filter(Boolean)
+        .map(part => labels[part.toLowerCase()] || part)
+        .join(" / ");
+}
+
+function toIsoDate(localDate) {
+    const year = localDate.getFullYear();
+    const month = String(localDate.getMonth() + 1).padStart(2, "0");
+    const day = String(localDate.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function parseIsoDate(value) {
+    const [year, month, day] = String(value).split("-").map(Number);
+    return new Date(year, month - 1, day);
 }
 
 function updateImportSelection(fileInput, button, selectedLabel, buttonLabel, card, imported = false, fileName = "") {
@@ -168,8 +234,16 @@ async function apiRequest(path, options = {}) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
+        let detailMessage = "No fue posible completar la solicitud.";
+        if (Array.isArray(data.detail)) {
+            detailMessage = data.detail
+                .map(item => item?.msg || item?.message || "Dato invalido.")
+                .join(" ");
+        } else if (typeof data.detail === "string") {
+            detailMessage = data.detail;
+        }
         const error = new Error(
-            typeof data.detail === "string" ? data.detail : "No fue posible completar la solicitud."
+            detailMessage
         );
         error.detail = data.detail;
         throw error;
@@ -194,8 +268,13 @@ async function downloadApiFile(path) {
     }
     const blob = await response.blob();
     const disposition = response.headers.get("Content-Disposition") || "";
-    const match = disposition.match(/filename=\"([^\"]+)\"/i);
-    const fileName = match ? match[1] : "exportacion";
+    const utfMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+    const basicMatch = disposition.match(/filename=\"([^\"]+)\"/i);
+    const fileName = utfMatch
+        ? decodeURIComponent(utfMatch[1])
+        : basicMatch
+            ? basicMatch[1]
+            : "exportacion";
     const objectUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = objectUrl;
@@ -204,6 +283,144 @@ async function downloadApiFile(path) {
     link.click();
     link.remove();
     URL.revokeObjectURL(objectUrl);
+}
+
+function pendingFeature(message) {
+    alert(message);
+}
+
+function showStatusModal({ title, message, loading = false, closable = false } = {}) {
+    statusTitle.textContent = title || "Procesando";
+    statusMessage.textContent = message || "";
+    statusSpinner.classList.toggle("hidden", !loading);
+    statusCloseBtn.classList.toggle("hidden", !closable);
+    statusModal.classList.remove("hidden");
+}
+
+function hideStatusModal() {
+    statusModal.classList.add("hidden");
+}
+
+function openPrintPreview(titleText, htmlContent) {
+    const printWindow = window.open("", "_blank", "width=1280,height=900");
+    if (!printWindow) {
+        alert("No fue posible abrir la vista de impresion.");
+        return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(`<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <title>${escapeHtml(titleText)}</title>
+    <style>
+        body { font-family: "Segoe UI", Arial, sans-serif; margin: 24px; color: #22313f; }
+        h1 { margin: 0 0 20px; font-size: 24px; }
+        h2, h3 { margin: 0 0 12px; }
+        .stack-cycle-group { margin-bottom: 28px; }
+        .stack-settlement-card { margin-bottom: 24px; page-break-inside: avoid; }
+        .settlement-meta { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 12px; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { border: 1px solid #cfd6dc; padding: 6px 8px; text-align: center; white-space: nowrap; }
+        th:first-child, td:first-child { text-align: left; }
+        th:nth-child(2), td:nth-child(2), th:nth-child(3), td:nth-child(3), th:nth-child(4), td:nth-child(4) { min-width: 70px; }
+    </style>
+</head>
+<body>
+    <h1>${escapeHtml(titleText)}</h1>
+    ${htmlContent}
+</body>
+</html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+}
+
+function resetHolidayForm() {
+    editingHolidayId = null;
+    holidayDateInput.value = toIsoDate(new Date());
+    holidayNameInput.value = "";
+    holidayActiveInput.checked = true;
+}
+
+function closeHolidayModal() {
+    holidayModal.classList.add("hidden");
+    resetHolidayForm();
+}
+
+function openHolidayModal({
+    id = null,
+    holiday_date = toIsoDate(new Date()),
+    holiday_name = "",
+    active = true
+} = {}) {
+    editingHolidayId = id;
+    holidayDateInput.value = holiday_date;
+    holidayNameInput.value = holiday_name;
+    holidayActiveInput.checked = Boolean(active);
+    holidayModal.classList.remove("hidden");
+}
+
+function holidaysByDate() {
+    return holidayEntries.reduce((map, item) => {
+        if (!item.active) return map;
+        const list = map.get(item.holiday_date) || [];
+        list.push(item);
+        map.set(item.holiday_date, list);
+        return map;
+    }, new Map());
+}
+
+function renderHolidayCalendar() {
+    const firstDay = new Date(holidayMonthCursor.getFullYear(), holidayMonthCursor.getMonth(), 1);
+    const lastDay = new Date(holidayMonthCursor.getFullYear(), holidayMonthCursor.getMonth() + 1, 0);
+    const startOffset = (firstDay.getDay() + 6) % 7;
+    const activeByDate = holidaysByDate();
+    const todayIso = toIsoDate(new Date());
+    const weekdayLabels = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"];
+    const cells = [];
+    for (let index = 0; index < startOffset; index += 1) {
+        cells.push('<div class="holiday-day empty"></div>');
+    }
+    for (let day = 1; day <= lastDay.getDate(); day += 1) {
+        const current = new Date(holidayMonthCursor.getFullYear(), holidayMonthCursor.getMonth(), day);
+        const iso = toIsoDate(current);
+        const items = activeByDate.get(iso) || [];
+        const holidayTitle = items.length ? ` title="${escapeHtml(items.map(item => item.holiday_name).join(", "))}"` : "";
+        cells.push(`
+            <button type="button" class="holiday-day ${items.length ? "holiday-active" : ""} ${iso === todayIso ? "today" : ""}" data-holiday-date="${iso}"${holidayTitle}>
+                <div class="holiday-day-number">${day}</div>
+                <div class="holiday-badges">
+                    ${items.length ? '<span class="holiday-badge">&bull;</span>' : ''}
+                </div>
+            </button>
+        `);
+    }
+    holidayMonthLabel.textContent = holidayMonthCursor.toLocaleDateString("es-CL", {
+        month: "long",
+        year: "numeric"
+    });
+    holidayCalendar.innerHTML = [
+        ...weekdayLabels.map(label => `<div class="holiday-weekday">${label}</div>`),
+        ...cells
+    ].join("");
+}
+
+async function loadHolidayCalendar() {
+    const year = holidayMonthCursor.getFullYear();
+    const month = holidayMonthCursor.getMonth() + 1;
+    holidayEntries = await apiRequest(`/holidays?year=${year}&month=${month}`);
+    renderHolidayCalendar();
+}
+
+async function refreshDisplayedSettlementsForHolidayChange() {
+    if (currentContext && liquidationCycle.value && liquidationEmployee.value) {
+        await loadSettlement();
+        return;
+    }
+    if (currentView === "search" && selectedSearchCycleIds.length && selectedSearchEmployeeIds.length) {
+        await loadSearchSettlement();
+    }
 }
 
 async function loadDashboard() {
@@ -221,6 +438,7 @@ async function loadDashboard() {
             <td>${escapeHtml(item.imported_by)}</td>
         </tr>
     `).join("");
+    await loadHolidayCalendar();
 }
 
 async function loadCycleDropdowns() {
@@ -259,8 +477,19 @@ async function runImport(sourceType, fileInput, button, confirmed = false) {
     button.disabled = true;
     try {
         const importedFileName = file.name;
+        showStatusModal({
+            title: sourceType === "DR" ? "Importando D&R" : "Importando Servicios",
+            message: `Procesando ${importedFileName}. Esto puede tardar unos segundos...`,
+            loading: true,
+            closable: false
+        });
         const result = await apiRequest(`/imports/${sourceType}`, { method: "POST", body });
-        alert(`Importación completada: ${result.records_inserted} registros insertados.`);
+        showStatusModal({
+            title: "Importacion completada",
+            message: `${result.records_inserted} registros insertados${result.workers_created ? `, ${result.workers_created} trabajador(es) creados` : ""}.`,
+            loading: false,
+            closable: true
+        });
         fileInput.value = "";
         if (sourceType === "DR") {
             updateImportSelection(
@@ -288,12 +517,18 @@ async function runImport(sourceType, fileInput, button, confirmed = false) {
     } catch (error) {
         const detail = error.detail;
         if (detail?.requires_confirmation && !confirmed) {
+            hideStatusModal();
             const accepted = confirm(
-                `${detail.message}\nPosibles reimportaciones: ${detail.possible_reimports}\n¿Desea continuar?`
+                `${detail.message}\nPosibles reimportaciones: ${detail.possible_reimports}\nDesea continuar?`
             );
             if (accepted) await runImport(sourceType, fileInput, button, true);
         } else {
-            alert(typeof detail === "string" ? detail : error.message);
+            showStatusModal({
+                title: "Importacion con error",
+                message: typeof detail === "string" ? detail : error.message,
+                loading: false,
+                closable: true
+            });
         }
     } finally {
         button.disabled = false;
@@ -307,6 +542,9 @@ function applyPermissions(user) {
     usersNav.classList.toggle("hidden", !hasPermission("users.manage"));
     if (newWorkerBtn) {
         newWorkerBtn.classList.toggle("hidden", user.role !== "ADMIN");
+    }
+    if (holidayNewBtn) {
+        holidayNewBtn.classList.toggle("hidden", user.role !== "ADMIN");
     }
     searchEditBtn?.classList.add("hidden");
     searchAdjustmentsBtn?.classList.add("hidden");
@@ -324,6 +562,16 @@ function closeSession() {
     appShell.classList.add("hidden");
     loginScreen.classList.remove("hidden");
     loginPassword.value = "";
+}
+
+function initializeRememberedLogin() {
+    const rememberedUsername = localStorage.getItem(rememberedUsernameKey);
+    if (rememberedUsername) {
+        loginUsername.value = rememberedUsername;
+        if (loginRemember) {
+            loginRemember.checked = true;
+        }
+    }
 }
 
 async function loadUsers() {
@@ -344,13 +592,19 @@ function resetWorkerForm() {
     editingWorkerId = null;
     workerName.value = "";
     workerContract.value = "";
+    workerRut.value = "";
+    workerEmail.value = "";
+    workerCargo.value = "";
     workerName.disabled = false;
     workerModal.classList.add("hidden");
 }
 
-function openWorkerModal({ name = "", contractType = "", readOnlyName = false } = {}) {
+function openWorkerModal({ name = "", contractType = "", rut = "", email = "", cargo = "", readOnlyName = false } = {}) {
     workerName.value = name;
     workerContract.value = contractType || "";
+    workerRut.value = rut || "";
+    workerEmail.value = email || "";
+    workerCargo.value = cargo || "";
     workerName.disabled = readOnlyName;
     workerModal.classList.remove("hidden");
 }
@@ -361,7 +615,7 @@ function selectedSearchEmployeeName() {
 
 function resetAdjustmentForm() {
     selectedAdjustmentId = null;
-    adjustmentType.value = "VACATION";
+    adjustmentType.value = "BONUS";
     adjustmentUnits.value = "";
     adjustmentAmount.value = "";
     adjustmentObservations.value = "";
@@ -464,6 +718,10 @@ async function exportContextSettlement(fileFormat) {
         alert("Seleccione ciclo y trabajador.");
         return;
     }
+    if (liquidationEmployee.value === "__ALL__") {
+        alert("Para exportar Excel seleccione un trabajador especifico o use Exportar PDF para la vista completa.");
+        return;
+    }
     const query = new URLSearchParams({
         cycle_id: liquidationCycle.value,
         employee_id: liquidationEmployee.value,
@@ -479,6 +737,9 @@ async function loadWorkers() {
     workersTableBody.innerHTML = workers.map(worker => `
         <tr>
             <td>${escapeHtml(worker.employee_name)}</td>
+            <td>${escapeHtml(worker.cargo || "")}</td>
+            <td>${escapeHtml(worker.rut || "")}</td>
+            <td>${escapeHtml(worker.email || "")}</td>
             <td>${editingWorkerId === worker.id
                 ? `<div class="actions left">
                         <button class="btn secondary small-btn choose-worker-contract-btn" data-worker-id="${worker.id}" data-contract-type="NEW">Nuevo</button>
@@ -489,12 +750,22 @@ async function loadWorkers() {
             <td>${currentUser?.role === "ADMIN"
                 ? editingWorkerId === worker.id
                     ? '<span class="rate-readonly">Seleccione contrato</span>'
-                    : `<button class="btn secondary small-btn edit-worker-btn"
-                            data-worker-id="${worker.id}"
-                            data-worker-name="${escapeHtml(worker.employee_name)}"
-                            data-contract-type="${worker.contract_type || ""}">
-                            Editar
-                       </button>`
+                    : `<div class="actions left">
+                            <button class="btn secondary small-btn edit-worker-btn"
+                                data-worker-id="${worker.id}"
+                                data-worker-name="${escapeHtml(worker.employee_name)}"
+                                data-contract-type="${worker.contract_type || ""}"
+                                data-worker-rut="${escapeHtml(worker.rut || "")}"
+                                data-worker-email="${escapeHtml(worker.email || "")}"
+                                data-worker-cargo="${escapeHtml(worker.cargo || "")}">
+                                Editar
+                            </button>
+                            <button class="btn danger small-btn delete-worker-btn"
+                                data-worker-id="${worker.id}"
+                                data-worker-name="${escapeHtml(worker.employee_name)}">
+                                Eliminar
+                            </button>
+                        </div>`
                 : '<span class="rate-readonly">Solo lectura</span>'}</td>
         </tr>
     `).join("");
@@ -587,6 +858,14 @@ function selectedRateApplyMode() {
     return document.querySelector('input[name="rate-apply-mode"]:checked')?.value || "SINGLE_CYCLE";
 }
 
+function updateContextActionState() {
+    const hasSelection = Boolean(currentContext && liquidationCycle.value && liquidationEmployee.value);
+    liquidationExportExcelBtn.disabled = !hasSelection;
+    liquidationExportPdfBtn.disabled = !hasSelection;
+    liquidationEmailBtn.disabled = !hasSelection;
+    liquidationSoftlandBtn.disabled = !hasSelection;
+}
+
 function settlementCycleDate(columnIndex) {
     return dates[columnIndex]?.[3] || null;
 }
@@ -626,7 +905,9 @@ function updateSearchActionState() {
     searchAdjustmentsBtn?.classList.add("hidden");
     searchSingleActions?.classList.toggle("hidden", !(single && currentUser?.role === "ADMIN"));
     searchExportExcelBtn.disabled = !displayedSearchSettlements.length && !single;
-    searchExportCsvBtn.disabled = !displayedSearchSettlements.length && !single;
+    searchExportPdfBtn.disabled = !displayedSearchSettlements.length && !single;
+    searchEmailBtn.disabled = !displayedSearchSettlements.length && !single;
+    searchSoftlandBtn.disabled = !displayedSearchSettlements.length && !single;
 }
 
 function closeSearchDropdowns() {
@@ -666,19 +947,30 @@ function renderSearchCycleChecklist() {
 
 function renderSearchEmployeeChecklist(employees) {
     searchEmployee.innerHTML = employees.length
-        ? employees.map(employee => `
-            <label class="checklist-item">
+        ? [
+            `<label class="checklist-item checklist-item-all">
                 <input
                     type="checkbox"
-                    data-employee-id="${employee.id}"
-                    data-employee-name="${escapeHtml(employee.employee_name)}"
-                    ${selectedSearchEmployeeIds.includes(Number(employee.id)) ? "checked" : ""} />
-                <span>${escapeHtml(employee.employee_name)}</span>
-            </label>
-        `).join("")
+                    data-select-all-employees="true"
+                    ${employees.length && selectedSearchEmployeeIds.length === employees.length ? "checked" : ""} />
+                <span>Todos</span>
+            </label>`,
+            ...employees.map(employee => `
+                <label class="checklist-item">
+                    <input
+                        type="checkbox"
+                        data-employee-id="${employee.id}"
+                        data-employee-name="${escapeHtml(employee.employee_name)}"
+                        ${selectedSearchEmployeeIds.includes(Number(employee.id)) ? "checked" : ""} />
+                    <span>${escapeHtml(employee.employee_name)}</span>
+                </label>
+            `)
+        ].join("")
         : '<div class="checklist-empty">Seleccione primero uno o más ciclos.</div>';
     searchEmployeeSummary.textContent = selectedSearchEmployeeIds.length
-        ? `${selectedSearchEmployeeIds.length} trabajador(es) seleccionado(s)`
+        ? selectedSearchEmployeeIds.length === employees.length
+            ? "Todos los trabajadores"
+            : `${selectedSearchEmployeeIds.length} trabajador(es) seleccionado(s)`
         : "Seleccione uno o más trabajadores";
 }
 
@@ -699,12 +991,14 @@ function clearSettlement() {
 }
 
 function settlementToSheetData(settlement, contextOverride = null) {
-    const statuses = new Map(settlement.statuses.map(item => [item.date, item.status || ""]));
+    const statuses = new Map(settlement.statuses.map(item => [item.date, formatStatusLabel(item.status)]));
     const sheetDates = settlement.dates.map(item => [
         item.label,
         item.weekday,
         statuses.get(item.date) || "",
-        item.date
+        item.date,
+        Boolean(item.is_holiday),
+        item.holiday_names || []
     ]);
     const sheetRows = [
         {label:"Estado", units:"", rate:"", total:"", values:sheetDates.map(item => item[2]), status:true},
@@ -785,14 +1079,14 @@ function renderSpreadsheetMarkup(sheetData, allowEdit = false) {
             <th class="units">${escapeHtml(employeeName)}<br>Unidades</th>
             <th class="rate">Tarifa</th>
             <th class="total">${escapeHtml(roleLabel)}<br>Total $</th>
-            ${sheetData.dates.map(d => `<th class="date-head">${d[0]}</th>`).join("")}
+            ${sheetData.dates.map(d => `<th class="date-head ${d[4] ? "holiday-head" : ""}"${d[4] && d[5]?.length ? ` title="${escapeHtml(d[5].join(", "))}"` : ""}>${d[0]}</th>`).join("")}
         </tr>
         <tr>
             <th class="fixed">Actividad</th>
             <th class="units"></th>
             <th class="rate"></th>
             <th class="total"></th>
-            ${sheetData.dates.map(d => `<th class="date-head">${d[1]}</th>`).join("")}
+            ${sheetData.dates.map(d => `<th class="date-head ${d[4] ? "holiday-head" : ""}"${d[4] && d[5]?.length ? ` title="${escapeHtml(d[5].join(", "))}"` : ""}>${d[1]}</th>`).join("")}
         </tr>
     </thead><tbody>`;
 
@@ -810,11 +1104,13 @@ function renderSpreadsheetMarkup(sheetData, allowEdit = false) {
 
         sheetData.dates.forEach((d, cIndex) => {
             const val = row.values ? row.values[cIndex] ?? "" : "";
+            const holidayClass = d[4] ? "holiday-cell" : "";
+            const holidayTitle = d[4] && d[5]?.length ? ` title="${escapeHtml(d[5].join(", "))}"` : "";
             const blue = row.status || row.totalRow || row.summary ? "blue" : "";
             if (row.status) {
-                html += `<td class="status-head">${val}</td>`;
+                html += `<td class="status-head ${holidayClass}"${holidayTitle}>${val}</td>`;
             } else if (allowEdit && row.conceptId) {
-                html += `<td class="${blue}">
+                html += `<td class="${`${blue} ${holidayClass}`.trim()}"${holidayTitle}>
                     <input
                         class="cell-input"
                         type="number"
@@ -825,7 +1121,7 @@ function renderSpreadsheetMarkup(sheetData, allowEdit = false) {
                         data-col="${cIndex}">
                 </td>`;
             } else {
-                html += `<td class="${blue}">${unitValue(val)}</td>`;
+                html += `<td class="${`${blue} ${holidayClass}`.trim()}"${holidayTitle}>${unitValue(val)}</td>`;
             }
         });
         html += `</tr>`;
@@ -909,6 +1205,7 @@ async function loadSettlement() {
             context: currentContext
         });
         clearSettlement();
+        updateContextActionState();
         return;
     }
     setActiveSheet({
@@ -918,6 +1215,31 @@ async function loadSettlement() {
         cycleNameEl: settlementCycleName,
         context: currentContext
     });
+    updateContextActionState();
+    if (liquidationEmployee.value === "__ALL__") {
+        const settlements = [];
+        for (const employee of contextEmployeesCache) {
+            const query = new URLSearchParams({
+                cycle_id: liquidationCycle.value,
+                employee_id: employee.id,
+                cost_center: currentContext.costCenter,
+                role_type: currentContext.roleType
+            });
+            try {
+                settlements.push(await apiRequest(`/settlements?${query}`));
+            } catch (error) {
+                if (!String(error.message || "").includes("No existen registros")) {
+                    throw error;
+                }
+            }
+        }
+        if (!settlements.length) {
+            clearSettlement();
+            return;
+        }
+        renderContextSettlementStack(settlements);
+        return;
+    }
     const query = new URLSearchParams({
         cycle_id: liquidationCycle.value,
         employee_id: liquidationEmployee.value,
@@ -997,7 +1319,7 @@ async function loadSearchSettlement() {
     searchSettlementCenter.textContent = "D&R + Servicios";
     searchSettlementRole.textContent = "Consolidado";
     if (!cycleGroups.length) {
-        spreadsheetSearch.innerHTML = '<div class="checklist-empty">No se encontraron liquidaciones para la selección actual.</div>';
+        spreadsheetSearch.innerHTML = '<div class="checklist-empty">No se encontraron liquidaciones para la seleccion actual.</div>';
         updateSearchActionState();
         return;
     }
@@ -1040,10 +1362,36 @@ async function loadSearchSettlement() {
     updateSearchActionState();
 }
 
+function renderContextSettlementStack(settlements) {
+    settlementEmployeeName.textContent = settlements.length === 1 ? settlements[0].employee.employee_name : "Todos";
+    spreadsheet.innerHTML = `
+        <section class="stack-cycle-group">
+            ${settlements.map(settlement => {
+                const sheetData = settlementToSheetData(settlement, currentContext);
+                return `
+                    <article class="stack-settlement-card">
+                        <div class="settlement-meta">
+                            <strong>${escapeHtml(settlement.employee.employee_name)}</strong>
+                            <span>Tarifa: <b>${escapeHtml(currentContext?.roleLabel || "")}</b></span>
+                            <span>Centro: <b>${escapeHtml(currentContext?.centerLabel || "")}</b></span>
+                            <span>Ciclo: <b>${escapeHtml(settlement.cycle.cycle_name)}</b></span>
+                        </div>
+                        <div class="spreadsheet">
+                            ${renderSpreadsheetMarkup(sheetData, false)}
+                        </div>
+                    </article>
+                `;
+            }).join("")}
+        </section>
+    `;
+}
+
 async function loadSettlementEmployees() {
     if (!currentContext || !liquidationCycle.value) {
+        contextEmployeesCache = [];
         liquidationEmployee.innerHTML = "";
         clearSettlement();
+        updateContextActionState();
         return;
     }
     const query = new URLSearchParams({
@@ -1052,11 +1400,20 @@ async function loadSettlementEmployees() {
         role_type: currentContext.roleType
     });
     const employees = await apiRequest(`/settlements/employees?${query}`);
-    liquidationEmployee.innerHTML = employees.map(employee =>
+    contextEmployeesCache = employees;
+    liquidationEmployee.innerHTML = [
+        '<option value="__ALL__">Todos</option>',
+        ...employees.map(employee =>
         `<option value="${employee.id}">${escapeHtml(employee.employee_name)}</option>`
-    ).join("");
-    if (employees.length) await loadSettlement();
-    else clearSettlement();
+        )
+    ].join("");
+    if (employees.length) {
+        liquidationEmployee.value = "__ALL__";
+        await loadSettlement();
+    } else {
+        clearSettlement();
+    }
+    updateContextActionState();
 }
 
 function formatNumber(value, maximumFractionDigits = 0) {
@@ -1190,6 +1547,11 @@ loginBtn.addEventListener("click", async () => {
             })
         });
         localStorage.setItem("payroll_access_token", session.access_token);
+        if (loginRemember?.checked) {
+            localStorage.setItem(rememberedUsernameKey, loginUsername.value.trim());
+        } else {
+            localStorage.removeItem(rememberedUsernameKey);
+        }
         openSession(session.user);
         await Promise.all([loadDashboard(), loadCycleDropdowns()]);
         setView("dashboard");
@@ -1202,6 +1564,10 @@ loginBtn.addEventListener("click", async () => {
 
 loginPassword.addEventListener("keydown", event => {
     if (event.key === "Enter") loginBtn.click();
+});
+
+loginShowPassword?.addEventListener("change", () => {
+    loginPassword.type = loginShowPassword.checked ? "text" : "password";
 });
 
 logoutBtn.addEventListener("click", closeSession);
@@ -1460,23 +1826,45 @@ adjustmentDeleteBtn?.addEventListener("click", async () => {
 });
 
 newUserBtn.addEventListener("click", () => userForm.classList.remove("hidden"));
-cancelUserBtn.addEventListener("click", () => userForm.classList.add("hidden"));
+cancelUserBtn.addEventListener("click", () => {
+    userForm.classList.add("hidden");
+    userFullName.value = "";
+    userUsername.value = "";
+    userPassword.value = "";
+    userRole.value = "ADMIN";
+    userActive.value = "true";
+});
 saveUserBtn.addEventListener("click", async () => {
-    const inputs = userForm.querySelectorAll("input");
-    const selects = userForm.querySelectorAll("select");
+    const payload = {
+        full_name: userFullName.value.trim(),
+        username: userUsername.value.trim(),
+        password: userPassword.value,
+        role_name: userRole.value,
+        active: userActive.value === "true"
+    };
+    if (!payload.full_name) {
+        alert("Ingrese el nombre del usuario.");
+        return;
+    }
+    if (payload.username.length < 3) {
+        alert("El usuario debe tener al menos 3 caracteres.");
+        return;
+    }
+    if (payload.password.length < 10) {
+        alert("La contraseña debe tener al menos 10 caracteres.");
+        return;
+    }
     saveUserBtn.disabled = true;
     try {
         await apiRequest("/users", {
             method: "POST",
-            body: JSON.stringify({
-                full_name: inputs[0].value,
-                username: inputs[1].value,
-                password: inputs[2].value,
-                role_name: selects[0].value,
-                active: selects[1].value === "Activo"
-            })
+            body: JSON.stringify(payload)
         });
-        inputs.forEach(input => input.value = "");
+        userFullName.value = "";
+        userUsername.value = "";
+        userPassword.value = "";
+        userRole.value = "ADMIN";
+        userActive.value = "true";
         userForm.classList.add("hidden");
         await loadUsers();
     } catch (error) {
@@ -1503,6 +1891,76 @@ servicesImportFile.addEventListener("change", () =>
         servicesImportCard
     )
 );
+holidayPrevMonthBtn?.addEventListener("click", () => {
+    holidayMonthCursor = new Date(holidayMonthCursor.getFullYear(), holidayMonthCursor.getMonth() - 1, 1);
+    loadHolidayCalendar().catch(error => alert(error.message));
+});
+holidayNextMonthBtn?.addEventListener("click", () => {
+    holidayMonthCursor = new Date(holidayMonthCursor.getFullYear(), holidayMonthCursor.getMonth() + 1, 1);
+    loadHolidayCalendar().catch(error => alert(error.message));
+});
+holidayNewBtn?.addEventListener("click", () => {
+    if (currentUser?.role !== "ADMIN") {
+        alert("Solo ADMIN puede editar feriados.");
+        return;
+    }
+    openHolidayModal({
+        holiday_date: toIsoDate(new Date(holidayMonthCursor.getFullYear(), holidayMonthCursor.getMonth(), 1))
+    });
+});
+holidayCalendar?.addEventListener("click", event => {
+    const dayButton = event.target.closest("[data-holiday-date]");
+    if (!dayButton || currentUser?.role !== "ADMIN") return;
+    const editableHoliday = holidayEntries.find(item =>
+        item.holiday_date === dayButton.dataset.holidayDate && item.editable
+    );
+    if (editableHoliday) {
+        openHolidayModal(editableHoliday);
+        return;
+    }
+    openHolidayModal({
+        holiday_date: dayButton.dataset.holidayDate
+    });
+});
+holidayCancelBtn?.addEventListener("click", closeHolidayModal);
+holidaySaveBtn?.addEventListener("click", async () => {
+    if (currentUser?.role !== "ADMIN") return;
+    const payload = {
+        holiday_date: holidayDateInput.value,
+        holiday_name: holidayNameInput.value.trim(),
+        holiday_scope: "CUSTOM",
+        active: holidayActiveInput.checked
+    };
+    if (!payload.holiday_date || !payload.holiday_name) {
+        alert("Ingrese fecha y nombre del feriado.");
+        return;
+    }
+    holidaySaveBtn.disabled = true;
+    try {
+        if (editingHolidayId) {
+            await apiRequest(`/holidays/${editingHolidayId}`, {
+                method: "PUT",
+                body: JSON.stringify(payload)
+            });
+        } else {
+            await apiRequest("/holidays", {
+                method: "POST",
+                body: JSON.stringify(payload)
+            });
+        }
+        closeHolidayModal();
+        await loadHolidayCalendar();
+        await refreshDisplayedSettlementsForHolidayChange();
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        holidaySaveBtn.disabled = false;
+    }
+});
+
+statusCloseBtn?.addEventListener("click", () => {
+    hideStatusModal();
+});
 liquidationCycle.addEventListener("change", () => {
     settlementCycleName.textContent =
         liquidationCycle.options[liquidationCycle.selectedIndex]?.textContent || "";
@@ -1543,6 +2001,20 @@ searchCycle.addEventListener("input", event => {
 });
 
 searchEmployee.addEventListener("input", event => {
+    if (event.target.matches("input[data-select-all-employees]")) {
+        const employees = [...searchEmployee.querySelectorAll("input[data-employee-id]")].map(input => ({
+            id: Number(input.dataset.employeeId),
+            employee_name: input.dataset.employeeName || ""
+        }));
+        selectedSearchEmployeeIds = event.target.checked ? employees.map(employee => employee.id) : [];
+        renderSearchEmployeeChecklist(employees);
+        updateSearchActionState();
+        if (currentView === "search") {
+            searchResultTitle.textContent = "Liquidacion";
+            clearSettlement();
+        }
+        return;
+    }
     if (!event.target.matches("input[data-employee-id]")) return;
     if (!adjustmentsModal.classList.contains("hidden")) closeAdjustmentsModal();
     selectedSearchEmployeeIds = checkedValues(searchEmployee, "employeeId");
@@ -1627,7 +2099,7 @@ rateSaveBtn.addEventListener("click", async () => {
         return;
     }
     const confirmed = confirm(
-        `Se actualizará ${currentRateRow.concept_name} desde ${cycleNameById(rateModalCycle.value)}. ¿Desea continuar?`
+        `Se actualizara ${currentRateRow.concept_name} desde ${cycleNameById(rateModalCycle.value)}. Desea continuar?`
     );
     if (!confirmed) return;
     rateSaveBtn.disabled = true;
@@ -1681,9 +2153,29 @@ workersTableBody?.addEventListener("click", event => {
         openWorkerModal({
             name: button.dataset.workerName || "",
             contractType: button.dataset.contractType || "",
+            rut: button.dataset.workerRut || "",
+            email: button.dataset.workerEmail || "",
+            cargo: button.dataset.workerCargo || "",
             readOnlyName: true
         });
         loadWorkers().catch(error => alert(error.message));
+        return;
+    }
+    const deleteButton = event.target.closest(".delete-worker-btn");
+    if (deleteButton && currentUser?.role === "ADMIN") {
+        const workerId = Number(deleteButton.dataset.workerId);
+        const workerName = deleteButton.dataset.workerName || "este trabajador";
+        if (!confirm(`¿Eliminar a ${workerName}?`)) {
+            return;
+        }
+        apiRequest(`/workers/${workerId}`, {
+            method: "DELETE"
+        }).then(async () => {
+            if (editingWorkerId === workerId) {
+                editingWorkerId = null;
+            }
+            await refreshAfterWorkerContractChange();
+        }).catch(error => alert(error.message));
         return;
     }
     const chooseButton = event.target.closest(".choose-worker-contract-btn");
@@ -1712,12 +2204,20 @@ saveWorkerBtn?.addEventListener("click", async () => {
     try {
         const payload = {
             employee_name: workerName.value,
-            contract_type: workerContract.value || null
+            contract_type: workerContract.value || null,
+            rut: workerRut.value || null,
+            email: workerEmail.value || null,
+            cargo: workerCargo.value || null
         };
         if (editingWorkerId) {
             await apiRequest(`/workers/${editingWorkerId}`, {
                 method: "PUT",
-                body: JSON.stringify({ contract_type: payload.contract_type })
+                body: JSON.stringify({
+                    contract_type: payload.contract_type,
+                    rut: payload.rut,
+                    email: payload.email,
+                    cargo: payload.cargo
+                })
             });
         } else {
             await apiRequest("/workers", {
@@ -1738,16 +2238,32 @@ searchExportExcelBtn?.addEventListener("click", () => {
     exportSearchSettlement("xlsx").catch(error => alert(error.message));
 });
 
-searchExportCsvBtn?.addEventListener("click", () => {
-    exportSearchSettlement("csv").catch(error => alert(error.message));
+searchExportPdfBtn?.addEventListener("click", () => {
+    exportSearchSettlement("pdf").catch(error => alert(error.message));
+});
+
+searchEmailBtn?.addEventListener("click", () => {
+    pendingFeature("Enviar por Email quedo visible, pero falta configurar la cuenta del cliente y el flujo de envio.");
+});
+
+searchSoftlandBtn?.addEventListener("click", () => {
+    pendingFeature("Exportar Softland quedo preparado en la interfaz. Falta definir las columnas exactas del archivo.");
 });
 
 liquidationExportExcelBtn?.addEventListener("click", () => {
     exportContextSettlement("xlsx").catch(error => alert(error.message));
 });
 
-liquidationExportCsvBtn?.addEventListener("click", () => {
-    exportContextSettlement("csv").catch(error => alert(error.message));
+liquidationExportPdfBtn?.addEventListener("click", () => {
+    exportContextSettlement("pdf").catch(error => alert(error.message));
+});
+
+liquidationEmailBtn?.addEventListener("click", () => {
+    pendingFeature("Enviar por Email quedo visible, pero falta configurar la cuenta del cliente y el flujo de envio.");
+});
+
+liquidationSoftlandBtn?.addEventListener("click", () => {
+    pendingFeature("Exportar Softland quedo preparado en la interfaz. Falta definir las columnas exactas del archivo.");
 });
 
 const existingToken = localStorage.getItem("payroll_access_token");
@@ -1760,6 +2276,7 @@ if (existingToken) {
     }).catch(closeSession);
 }
 
+initializeRememberedLogin();
 updateImportSelection(drImportFile, drImportBtn, drImportSelected, "Importar D&R", drImportCard);
 updateImportSelection(
     servicesImportFile,
@@ -1768,5 +2285,7 @@ updateImportSelection(
     "Importar Servicios",
     servicesImportCard
 );
+updateContextActionState();
 renderSpreadsheet(spreadsheet);
 renderSpreadsheet(spreadsheetSearch);
+

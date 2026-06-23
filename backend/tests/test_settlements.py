@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
+import pytest
 from sqlalchemy import select
 
 from app.models import (
@@ -12,11 +13,13 @@ from app.models import (
     PayrollConceptRate,
     PayrollAuditLog,
     PayrollCycle,
+    PayrollHoliday,
     PayrollManualAdjustment,
     PayrollImport,
     PayrollRecord,
     User,
 )
+from app.settlements import SettlementEngine
 from conftest import login
 
 
@@ -164,6 +167,8 @@ def test_settlement_builds_dynamic_calendar_concepts_units_rates_and_totals(
         "date": "2026-05-22",
         "label": "22-05",
         "weekday": "vie",
+        "is_holiday": False,
+        "holiday_names": [],
     }
     assert body["dates"][-1]["date"] == "2026-06-21"
     assert [row["row_type"] for row in body["rows"]] == [
@@ -185,14 +190,156 @@ def test_settlement_builds_dynamic_calendar_concepts_units_rates_and_totals(
     assert Decimal(body["total_to_pay"]) == Decimal("75")
     assert Decimal(total_to_pay["total"]) == Decimal("75")
     assert Decimal(variable_daily["daily_values"][0]["value"]) == Decimal("55")
-    assert Decimal(worked_day["daily_values"][0]["value"]) == Decimal("1")
+    assert Decimal(worked_day["daily_values"][0]["value"]) == Decimal("5")
     assert Decimal(worked_day["daily_values"][1]["value"]) == Decimal("1")
     assert Decimal(worked_day["daily_values"][2]["value"]) == Decimal("0")
-    assert Decimal(week_corrida["total"]) == Decimal("37.5")
-    assert Decimal(body["week_corrida"]) == Decimal("37.5")
-    assert Decimal(production_total["total"]) == Decimal("112.5")
-    assert Decimal(body["production_total"]) == Decimal("112.5")
+    assert Decimal(week_corrida["total"]) == Decimal("12.5")
+    assert Decimal(body["week_corrida"]) == Decimal("12.5")
+    assert Decimal(production_total["total"]) == Decimal("87.5")
+    assert Decimal(body["production_total"]) == Decimal("87.5")
     assert body["statuses"][0]["status"] == "OK"
+
+
+def test_settlement_marks_holiday_dates_and_uses_them_for_week_corrida(client, db_factory):
+    driver_id, _ = seed_settlement(db_factory)
+    with db_factory() as db:
+        db.add(
+            PayrollHoliday(
+                holiday_date=date(2026, 5, 22),
+                holiday_name="Feriado de prueba",
+                holiday_scope="CUSTOM",
+                active=True,
+                is_default=False,
+            )
+        )
+        db.commit()
+
+    response = client.get(
+        (
+            f"/api/settlements?cycle_id=1&employee_id={driver_id}"
+            "&cost_center=DR&role_type=DRIVER"
+        ),
+        headers=auth_headers(client),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    first_date = body["dates"][0]
+    assert first_date["is_holiday"] is True
+    assert first_date["holiday_names"] == ["Feriado de prueba"]
+    assert Decimal(body["week_corrida"]) == Decimal("25")
+
+
+def test_cycle_start_worked_day_adds_missing_weekdays_even_when_first_day_has_zero_variable(client, db_factory):
+    with db_factory() as db:
+        admin = db.scalar(select(User).where(User.username == "admin"))
+        db.add(
+            PayrollCycle(
+                id=2,
+                cycle_name="Ciclo Sabado 2026",
+                start_date=date(2026, 5, 23),
+                end_date=date(2026, 5, 24),
+            )
+        )
+        worker = Employee(employee_name="Inicio Sabado", role_type="DRIVER")
+        db.add(worker)
+        db.flush()
+        payroll_import = PayrollImport(
+            cycle_id=2,
+            source_type="DR",
+            cost_center="DR",
+            file_name="sabado.xlsx",
+            imported_by=admin.id,
+            rows_imported=2,
+        )
+        db.add(payroll_import)
+        db.flush()
+        concept = PayrollConcept(
+            concept_code="EVENT_SAT",
+            concept_name="Evento Sabado",
+            db_field="event_flag",
+            source_type="DR",
+            cost_center="DR",
+            role_type="DRIVER",
+            display_order=1,
+        )
+        db.add(concept)
+        db.flush()
+        db.add(
+            PayrollConceptRate(
+                concept_id=concept.id,
+                amount=Decimal("5"),
+                effective_from_cycle_id=2,
+                created_by=admin.id,
+            )
+        )
+        db.add_all(
+            [
+                PayrollRecord(
+                    cycle_id=2,
+                    import_id=payroll_import.id,
+                    employee_id=worker.id,
+                    source_type="DR",
+                    cost_center="DR",
+                    role_type="DRIVER",
+                    source_employee_name=worker.employee_name,
+                    source_row_number=10,
+                    source_row_hash="x" * 64,
+                    source_person_slot="OPERATOR",
+                    work_date=date(2026, 5, 23),
+                    event_flag=Decimal("0"),
+                ),
+                PayrollRecord(
+                    cycle_id=2,
+                    import_id=payroll_import.id,
+                    employee_id=worker.id,
+                    source_type="DR",
+                    cost_center="DR",
+                    role_type="DRIVER",
+                    source_employee_name=worker.employee_name,
+                    source_row_number=11,
+                    source_row_hash="y" * 64,
+                    source_person_slot="OPERATOR",
+                    work_date=date(2026, 5, 24),
+                    event_flag=Decimal("1"),
+                ),
+            ]
+        )
+        db.commit()
+        worker_id = worker.id
+
+    response = client.get(
+        f"/api/settlements?cycle_id=2&employee_id={worker_id}&cost_center=DR&role_type=DRIVER",
+        headers=auth_headers(client),
+    )
+
+    assert response.status_code == 200
+    worked_day_row = next(row for row in response.json()["rows"] if row["row_type"] == "worked_day")
+    assert Decimal(worked_day_row["daily_values"][0]["value"]) == Decimal("5")
+    assert Decimal(worked_day_row["daily_values"][1]["value"]) == Decimal("1")
+
+
+@pytest.mark.parametrize(
+    ("status", "variable_amount", "expected"),
+    [
+        ("Licencia", Decimal("5"), Decimal("0")),
+        ("Vacaciones", Decimal("5"), Decimal("0")),
+        ("Libre compensatorio", Decimal("5"), Decimal("0")),
+        ("Descanso", Decimal("5"), Decimal("0")),
+        ("Feriado", Decimal("0"), Decimal("0")),
+        ("Feriado", Decimal("3"), Decimal("1")),
+        ("Inasistencia", Decimal("0"), Decimal("1")),
+        ("Sin Producción", Decimal("0"), Decimal("1")),
+    ],
+)
+def test_worked_day_value_matches_status_rules(status, variable_amount, expected):
+    assert (
+        SettlementEngine._worked_day_value(
+            status=status,
+            variable_amount=variable_amount,
+        )
+        == expected
+    )
 
 
 def test_settlement_production_total_includes_manual_adjustments(client, db_factory):
@@ -254,12 +401,12 @@ def test_settlement_production_total_includes_manual_adjustments(client, db_fact
         row for row in body["rows"] if row["row_type"] == "adjustment_discount"
     )
     assert Decimal(body["total_to_pay"]) == Decimal("75")
-    assert Decimal(body["week_corrida"]) == Decimal("37.5")
+    assert Decimal(body["week_corrida"]) == Decimal("12.5")
     assert Decimal(vacation_row["total"]) == Decimal("10")
     assert Decimal(bonus_row["total"]) == Decimal("7")
     assert Decimal(discount_row["total"]) == Decimal("3")
-    assert Decimal(production_total["total"]) == Decimal("126.5")
-    assert Decimal(body["production_total"]) == Decimal("126.5")
+    assert Decimal(production_total["total"]) == Decimal("101.5")
+    assert Decimal(body["production_total"]) == Decimal("101.5")
 
 
 def test_settlement_employee_options_are_filtered_by_context(client, db_factory):
@@ -276,9 +423,9 @@ def test_settlement_employee_options_are_filtered_by_context(client, db_factory)
     )
 
     assert drivers.status_code == 200
-    assert drivers.json() == [{"id": driver_id, "employee_name": "Chofer Uno", "contract_type": None}]
+    assert drivers.json() == [{"id": driver_id, "employee_name": "Chofer Uno", "contract_type": None, "rut": None, "email": None, "cargo": None}]
     assert assistants.status_code == 200
-    assert assistants.json() == [{"id": assistant_id, "employee_name": "Auxiliar Uno", "contract_type": None}]
+    assert assistants.json() == [{"id": assistant_id, "employee_name": "Auxiliar Uno", "contract_type": None, "rut": None, "email": None, "cargo": None}]
 
 
 def test_search_employee_options_use_real_workers_and_filters(client, db_factory):
@@ -291,7 +438,7 @@ def test_search_employee_options_use_real_workers_and_filters(client, db_factory
     )
 
     assert response.status_code == 200
-    assert response.json() == [{"id": driver_id, "employee_name": "Chofer Uno", "contract_type": None}]
+    assert response.json() == [{"id": driver_id, "employee_name": "Chofer Uno", "contract_type": None, "rut": None, "email": None, "cargo": None}]
 
     response = client.get(
         "/api/search/employees?cycle_from_id=1&cycle_to_id=1&cost_center=DR&role_type=ASSISTANT",
@@ -299,7 +446,7 @@ def test_search_employee_options_use_real_workers_and_filters(client, db_factory
     )
 
     assert response.status_code == 200
-    assert response.json() == [{"id": assistant_id, "employee_name": "Auxiliar Uno", "contract_type": None}]
+    assert response.json() == [{"id": assistant_id, "employee_name": "Auxiliar Uno", "contract_type": None, "rut": None, "email": None, "cargo": None}]
 
 
 def test_search_records_applies_real_filters(client, db_factory):

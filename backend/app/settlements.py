@@ -3,11 +3,13 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
+import unicodedata
 
 from sqlalchemy import and_, func, or_, select, tuple_
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from .holidays import HolidayService
 from .models import (
     PayrollCellOverride,
     Employee,
@@ -17,6 +19,7 @@ from .models import (
     PayrollManualAdjustment,
     PayrollRecord,
 )
+from .employee_names import names_refer_to_same_person, normalize_employee_name
 from .rates import ConceptRateService
 from .week_corrida import WeekCorridaCalculator
 
@@ -53,6 +56,16 @@ ADJUSTMENT_ROW_ORDER = [
     ("MANUAL_ADJUSTMENT", "AJUSTE MANUAL"),
     ("DISCOUNT", "DESCUENTOS"),
 ]
+WORKED_DAY_ZERO_STATUSES = {
+    "licencia",
+    "vacaciones",
+    "libre compensatorio",
+    "descanso",
+}
+WORKED_DAY_ONE_STATUSES = {
+    "sin produccion",
+    "inasistencia",
+}
 
 
 def inclusive_dates(start_date: date, end_date: date) -> list[date]:
@@ -96,9 +109,11 @@ class SettlementEngine:
         self,
         rate_provider: ConceptRateProvider | None = None,
         week_corrida_calculator: WeekCorridaCalculator | None = None,
+        holiday_service: HolidayService | None = None,
     ) -> None:
         self.rate_provider = rate_provider or ConceptRateProvider()
         self.week_corrida_calculator = week_corrida_calculator or WeekCorridaCalculator()
+        self.holiday_service = holiday_service or HolidayService()
 
     def list_employees(
         self,
@@ -108,30 +123,37 @@ class SettlementEngine:
         cost_center: str,
         role_type: str,
     ) -> list[Employee]:
-        rows = db.execute(
-            select(
-                func.min(Employee.id).label("id"),
-                Employee.employee_name,
-                func.max(Employee.contract_type).label("contract_type"),
+        employees = list(
+            db.scalars(
+                select(Employee)
+                .join(PayrollRecord, PayrollRecord.employee_id == Employee.id)
+                .where(
+                    PayrollRecord.cycle_id == cycle_id,
+                    PayrollRecord.cost_center == cost_center,
+                    PayrollRecord.role_type == role_type,
+                )
+                .order_by(Employee.id)
+            ).all()
+        )
+        grouped: dict[str, list[Employee]] = {}
+        for employee in employees:
+            key = normalize_employee_name(employee.employee_name)
+            grouped.setdefault(key, []).append(employee)
+        results = []
+        for matches in grouped.values():
+            worker = min(matches, key=lambda item: item.id)
+            results.append(
+                Employee(
+                    id=worker.id,
+                    employee_name=worker.employee_name,
+                    role_type=role_type,
+                    contract_type=next((item.contract_type for item in matches if item.contract_type), None),
+                    rut=next((item.rut for item in matches if item.rut), None),
+                    email=next((item.email for item in matches if item.email), None),
+                    cargo=next((item.cargo for item in matches if item.cargo), None),
+                )
             )
-            .join(PayrollRecord, PayrollRecord.employee_id == Employee.id)
-            .where(
-                PayrollRecord.cycle_id == cycle_id,
-                PayrollRecord.cost_center == cost_center,
-                PayrollRecord.role_type == role_type,
-            )
-            .group_by(Employee.employee_name)
-            .order_by(Employee.employee_name)
-        ).all()
-        return [
-            Employee(
-                id=row.id,
-                employee_name=row.employee_name,
-                role_type=role_type,
-                contract_type=row.contract_type,
-            )
-            for row in rows
-        ]
+        return sorted(results, key=lambda item: item.employee_name)
 
     def build(
         self,
@@ -173,9 +195,12 @@ class SettlementEngine:
             raise LookupError("Trabajador no encontrado.")
         related_employees = list(
             db.scalars(
-                select(Employee).where(Employee.employee_name == employee.employee_name).order_by(Employee.id)
+                select(Employee).order_by(Employee.id)
             ).all()
         )
+        related_employees = [
+            item for item in related_employees if names_refer_to_same_person(item.employee_name, employee.employee_name)
+        ]
         employee_ids = [item.id for item in related_employees]
         contract_type = next(
             (item.contract_type for item in related_employees if item.contract_type),
@@ -275,7 +300,12 @@ class SettlementEngine:
                 status=status,
                 variable_amount=variable_daily[work_date],
             )
+        self._apply_cycle_start_worked_day_offset(
+            worked_day=worked_day,
+            cycle_start_date=cycle.start_date,
+        )
         return self._response_payload(
+            db=db,
             employee=employee,
             contract_type=contract_type,
             cycle=cycle,
@@ -304,9 +334,12 @@ class SettlementEngine:
             raise LookupError("Trabajador no encontrado.")
         related_employees = list(
             db.scalars(
-                select(Employee).where(Employee.employee_name == employee.employee_name).order_by(Employee.id)
+                select(Employee).order_by(Employee.id)
             ).all()
         )
+        related_employees = [
+            item for item in related_employees if names_refer_to_same_person(item.employee_name, employee.employee_name)
+        ]
         employee_ids = [item.id for item in related_employees]
         contract_type = next(
             (item.contract_type for item in related_employees if item.contract_type),
@@ -408,7 +441,12 @@ class SettlementEngine:
                 status=status,
                 variable_amount=variable_daily[work_date],
             )
+        self._apply_cycle_start_worked_day_offset(
+            worked_day=worked_day,
+            cycle_start_date=cycle.start_date,
+        )
         return self._response_payload(
+            db=db,
             employee=employee,
             contract_type=contract_type,
             cycle=cycle,
@@ -480,6 +518,7 @@ class SettlementEngine:
     def _response_payload(
         self,
         *,
+        db: Session,
         employee: Employee,
         contract_type: str | None,
         cycle: PayrollCycle,
@@ -492,8 +531,16 @@ class SettlementEngine:
         worked_day: dict[date, Decimal],
         adjustments: list[PayrollManualAdjustment],
     ) -> dict[str, object]:
+        holiday_map = self.holiday_service.active_holiday_map(
+            db,
+            cycle.start_date,
+            cycle.end_date,
+        )
         total_to_pay = sum((row["total"] for row in rows), ZERO)
-        week_corrida_total, week_corrida_daily, _ = self.week_corrida_calculator.calculate(
+        holiday_calculator = WeekCorridaCalculator(
+            holiday_provider=lambda target_date: target_date in holiday_map
+        )
+        week_corrida_total, week_corrida_daily, _ = holiday_calculator.calculate(
             start_date=cycle.start_date,
             end_date=cycle.end_date,
             variable_daily=variable_daily,
@@ -575,6 +622,9 @@ class SettlementEngine:
                 "id": employee.id,
                 "employee_name": employee.employee_name,
                 "contract_type": contract_type,
+                "rut": employee.rut,
+                "email": employee.email,
+                "cargo": employee.cargo,
             },
             "cycle": {
                 "id": cycle.id,
@@ -589,6 +639,8 @@ class SettlementEngine:
                     "date": work_date,
                     "label": work_date.strftime("%d-%m"),
                     "weekday": WEEKDAY_LABELS[work_date.weekday()],
+                    "is_holiday": work_date in holiday_map,
+                    "holiday_names": holiday_map.get(work_date, []),
                 }
                 for work_date in dates
             ],
@@ -618,9 +670,8 @@ class SettlementEngine:
         employee = db.get(Employee, employee_id)
         if employee is None:
             raise LookupError("Trabajador no encontrado.")
-        related_employee_ids = list(
-            db.scalars(select(Employee.id).where(Employee.employee_name == employee.employee_name)).all()
-        )
+        related_employee_ids = [item.id for item in db.scalars(select(Employee).order_by(Employee.id)).all()
+                                if names_refer_to_same_person(item.employee_name, employee.employee_name)]
         try:
             for concept_id, work_date, value in updates:
                 concept = db.get(PayrollConcept, concept_id)
@@ -750,12 +801,36 @@ class SettlementEngine:
         status: str | None,
         variable_amount: Decimal,
     ) -> Decimal:
-        normalized_status = (status or "").strip().casefold()
-        if normalized_status in {"sin produccion", "sin producción", "inasistencia"}:
+        normalized_status = SettlementEngine._normalize_status(status)
+        if normalized_status in WORKED_DAY_ZERO_STATUSES:
+            return ZERO
+        if normalized_status in WORKED_DAY_ONE_STATUSES:
             return Decimal("1")
         if variable_amount < Decimal("1"):
             return ZERO
         return Decimal("1")
+
+    @staticmethod
+    def _normalize_status(status: str | None) -> str:
+        raw_value = (status or "").strip().casefold()
+        return "".join(
+            character
+            for character in unicodedata.normalize("NFKD", raw_value)
+            if not unicodedata.combining(character)
+        )
+
+    @staticmethod
+    def _apply_cycle_start_worked_day_offset(
+        *,
+        worked_day: dict[date, Decimal],
+        cycle_start_date: date,
+    ) -> None:
+        if cycle_start_date not in worked_day:
+            return
+        weekday_offset = cycle_start_date.weekday()
+        if weekday_offset <= 0:
+            return
+        worked_day[cycle_start_date] = worked_day[cycle_start_date] + Decimal(weekday_offset)
 
     @staticmethod
     def _calculated_row(

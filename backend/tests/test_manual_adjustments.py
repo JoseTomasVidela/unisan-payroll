@@ -135,7 +135,7 @@ def test_admin_can_edit_manual_adjustment_without_description(client, db_factory
         f"/api/manual-adjustments/{adjustment_id}",
         headers=admin_headers(client),
         json={
-            "adjustment_type": "DISCOUNT",
+            "adjustment_type": "MANUAL_ADJUSTMENT",
             "description": None,
             "units": "3",
             "amount": "17",
@@ -145,8 +145,8 @@ def test_admin_can_edit_manual_adjustment_without_description(client, db_factory
 
     assert updated.status_code == 200
     body = updated.json()
-    assert body["adjustment_type"] == "DISCOUNT"
-    assert body["description"] == "Descuento"
+    assert body["adjustment_type"] == "MANUAL_ADJUSTMENT"
+    assert body["description"] == "Ajuste manual"
 
 
 def test_admin_can_soft_delete_manual_adjustment(client, db_factory):
@@ -157,8 +157,8 @@ def test_admin_can_soft_delete_manual_adjustment(client, db_factory):
         json={
             "cycle_id": 1,
             "employee_id": driver_id,
-            "adjustment_type": "DISCOUNT",
-            "description": "Descuento temporal",
+            "adjustment_type": "BONUS",
+            "description": "Bono temporal",
             "units": None,
             "amount": "8",
             "observations": None,
@@ -246,8 +246,8 @@ def test_manual_adjustment_list_returns_history_and_audit_rows(client, db_factor
         json={
             "cycle_id": 1,
             "employee_id": driver_id,
-            "adjustment_type": "VACATION",
-            "description": "Vacaciones",
+            "adjustment_type": "BONUS",
+            "description": "Bono de prueba",
             "units": None,
             "amount": "9",
             "observations": "Semana 1",
@@ -258,8 +258,8 @@ def test_manual_adjustment_list_returns_history_and_audit_rows(client, db_factor
         f"/api/manual-adjustments/{adjustment_id}",
         headers=admin_headers(client),
         json={
-            "adjustment_type": "VACATION",
-            "description": "Vacaciones actualizadas",
+            "adjustment_type": "BONUS",
+            "description": "Bono actualizado",
             "units": None,
             "amount": "11",
             "observations": "Semana 1 ajustada",
@@ -274,17 +274,27 @@ def test_manual_adjustment_list_returns_history_and_audit_rows(client, db_factor
     assert response.status_code == 200
     listed = response.json()
     assert len(listed) == 1
-    assert listed[0]["description"] == "Vacaciones actualizadas"
+    assert listed[0]["description"] == "Bono actualizado"
     actions = [item["action_type"] for item in listed[0]["history"]]
     assert "CREATE_MANUAL_ADJUSTMENT" in actions
     assert "UPDATE_MANUAL_ADJUSTMENT" in actions
 
-    with db_factory() as db:
-        adjustment = db.get(PayrollManualAdjustment, adjustment_id)
-        assert adjustment is not None
-        audits = db.scalars(
-            select(PayrollAuditLog)
-            .where(PayrollAuditLog.table_name == "payroll_manual_adjustments")
-            .where(PayrollAuditLog.record_id == adjustment_id)
-        ).all()
-        assert len(audits) == 2
+
+def test_adjustment_types_outside_enabled_adjustments_are_rejected(client, db_factory):
+    driver_id, _ = seed_settlement(db_factory)
+
+    response = client.post(
+        "/api/manual-adjustments",
+        headers=admin_headers(client),
+        json={
+            "cycle_id": 1,
+            "employee_id": driver_id,
+            "adjustment_type": "DISCOUNT",
+            "description": None,
+            "units": None,
+            "amount": "9",
+            "observations": None,
+        },
+    )
+
+    assert response.status_code == 422

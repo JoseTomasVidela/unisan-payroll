@@ -1,0 +1,3 @@
+ALTER TABLE payroll_employees
+    ADD COLUMN rut VARCHAR(32) NULL,
+    ADD COLUMN email VARCHAR(255) NULL;

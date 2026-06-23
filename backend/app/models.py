@@ -90,8 +90,15 @@ class Employee(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     employee_name: Mapped[str] = mapped_column(String(180), index=True)
+    first_name: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    middle_name: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    paternal_surname: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    maternal_surname: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     role_type: Mapped[str] = mapped_column(String(32), index=True)
     contract_type: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    rut: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    cargo: Mapped[str | None] = mapped_column(String(180), nullable=True, index=True)
 
 
 class PayrollImport(Base):
@@ -262,3 +269,22 @@ class PayrollExportLog(Base):
     role_type: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     file_name: Mapped[str] = mapped_column(String(255))
     exported_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PayrollHoliday(Base):
+    __tablename__ = "payroll_holidays"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    holiday_date: Mapped[date] = mapped_column(Date, index=True)
+    holiday_name: Mapped[str] = mapped_column(String(200))
+    holiday_scope: Mapped[str] = mapped_column(String(16), index=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by: Mapped[int | None] = mapped_column(
+        ForeignKey("payroll_users.id"), nullable=True
+    )
+    updated_by: Mapped[int | None] = mapped_column(
+        ForeignKey("payroll_users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

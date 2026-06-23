@@ -25,16 +25,24 @@ from .database import (
     validate_required_tables,
 )
 from .dependencies import get_current_user, require_permission
-from .exporter import export_csv_bytes, export_file_name, export_xlsx_bytes
+from .employee_names import (
+    names_refer_to_same_person,
+    normalize_employee_name,
+    parse_personnel_name,
+)
+from .exporter import export_csv_bytes, export_file_name, export_pdf_bytes, export_xlsx_bytes
+from .holidays import ALLOWED_HOLIDAY_SCOPES, HolidayService
 from .importer import ensure_workbook_cycles, find_possible_reimports, parse_workbook, persist_import
 from .models import (
     Employee,
     PayrollAuditLog,
     PayrollCycle,
     PayrollExportLog,
+    PayrollHoliday,
     PayrollImport,
     PayrollManualAdjustment,
     PayrollRecord,
+    PayrollCellOverride,
     Permission,
     Role,
     User,
@@ -43,6 +51,9 @@ from .rates import ConceptRateService
 from .schemas import (
     CycleResponse,
     EmployeeOptionResponse,
+    HolidayCreateRequest,
+    HolidayResponse,
+    HolidayUpdateRequest,
     ImportHistoryResponse,
     ImportResponse,
     LoginRequest,
@@ -76,6 +87,7 @@ from .services import (
     seed_roles_and_permissions,
     serialize_user,
 )
+from seed_payroll_concepts import apply_base_concepts
 
 
 def bootstrap(
@@ -93,6 +105,7 @@ def bootstrap(
     ensure_local_sqlite_extensions(target_engine)
     with Session(target_engine) as db:
         seed_roles_and_permissions(db)
+        apply_base_concepts(db)
         if settings.bootstrap_admin_username and settings.bootstrap_admin_password:
             existing = db.scalar(
                 select(User).where(
@@ -124,6 +137,34 @@ def ensure_local_sqlite_extensions(target_engine) -> None:
     if "contract_type" not in employee_columns:
         statements.append(
             "ALTER TABLE payroll_employees ADD COLUMN contract_type VARCHAR(16) NULL"
+        )
+    if "rut" not in employee_columns:
+        statements.append(
+            "ALTER TABLE payroll_employees ADD COLUMN rut VARCHAR(32) NULL"
+        )
+    if "email" not in employee_columns:
+        statements.append(
+            "ALTER TABLE payroll_employees ADD COLUMN email VARCHAR(255) NULL"
+        )
+    if "cargo" not in employee_columns:
+        statements.append(
+            "ALTER TABLE payroll_employees ADD COLUMN cargo VARCHAR(180) NULL"
+        )
+    if "first_name" not in employee_columns:
+        statements.append(
+            "ALTER TABLE payroll_employees ADD COLUMN first_name VARCHAR(80) NULL"
+        )
+    if "middle_name" not in employee_columns:
+        statements.append(
+            "ALTER TABLE payroll_employees ADD COLUMN middle_name VARCHAR(80) NULL"
+        )
+    if "paternal_surname" not in employee_columns:
+        statements.append(
+            "ALTER TABLE payroll_employees ADD COLUMN paternal_surname VARCHAR(80) NULL"
+        )
+    if "maternal_surname" not in employee_columns:
+        statements.append(
+            "ALTER TABLE payroll_employees ADD COLUMN maternal_surname VARCHAR(80) NULL"
         )
     if "contract_type" not in rate_columns:
         statements.append(
@@ -180,9 +221,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 settlement_engine = SettlementEngine()
 concept_rate_service = ConceptRateService()
+holiday_service = HolidayService()
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_BUILD_DIR = PROJECT_ROOT / "frontend" / "build"
 FRONTEND_ASSETS_DIR = FRONTEND_BUILD_DIR / "assets"
@@ -199,15 +242,77 @@ def normalize_contract_type(contract_type: str | None) -> str | None:
     return normalized
 
 
+def normalize_rut(rut: str | None) -> str | None:
+    if rut is None:
+        return None
+    normalized = rut.strip().upper()
+    return normalized or None
+
+
+def normalize_email(email: str | None) -> str | None:
+    if email is None:
+        return None
+    normalized = email.strip().lower()
+    return normalized or None
+
+
+def normalize_cargo(cargo: str | None) -> str | None:
+    if cargo is None:
+        return None
+    normalized = " ".join(cargo.strip().split())
+    return normalized or None
+
+
+def apply_employee_name_parts(employee: Employee, employee_name: str) -> None:
+    parsed = parse_personnel_name(employee_name)
+    employee.first_name = parsed.given_names[0] if len(parsed.given_names) >= 1 else None
+    employee.middle_name = parsed.given_names[1] if len(parsed.given_names) >= 2 else None
+    employee.paternal_surname = parsed.paternal_surname or None
+    employee.maternal_surname = parsed.maternal_surname or None
+
+
+def employee_display_name(employee: Employee) -> str:
+    parts = [
+        employee.first_name,
+        employee.middle_name,
+        employee.paternal_surname,
+        employee.maternal_surname,
+    ]
+    full_name = " ".join(part.strip() for part in parts if part and part.strip())
+    return full_name or employee.employee_name
+
+
+def grouped_employee_display_name(matches: list[Employee]) -> str:
+    for employee in matches:
+        full_name = employee_display_name(employee)
+        if full_name and full_name != employee.employee_name:
+            return full_name
+    worker = min(matches, key=lambda item: item.id)
+    return employee_display_name(worker)
+
+
+def find_related_employees_by_name(db: Session, employee_name: str) -> list[Employee]:
+    normalized_target = normalize_employee_name(employee_name)
+    if not normalized_target:
+        return []
+    employees = list(db.scalars(select(Employee).order_by(Employee.id)).all())
+    return [
+        employee
+        for employee in employees
+        if names_refer_to_same_person(employee.employee_name, employee_name)
+    ]
+
+
+def normalize_holiday_scope(holiday_scope: str) -> str:
+    normalized = holiday_scope.strip().upper()
+    if normalized not in ALLOWED_HOLIDAY_SCOPES:
+        raise HTTPException(status_code=400, detail="Tipo de feriado invalido.")
+    return normalized
+
+
 def normalize_adjustment_type(adjustment_type: str) -> str:
     normalized = adjustment_type.strip().upper()
-    allowed = {
-        "VACATION",
-        "OUT_OF_PRODUCTION_BONUS",
-        "BONUS",
-        "MANUAL_ADJUSTMENT",
-        "DISCOUNT",
-    }
+    allowed = {"VACATION", "BONUS", "MANUAL_ADJUSTMENT"}
     if normalized not in allowed:
         raise HTTPException(status_code=400, detail="Tipo de ajuste invalido.")
     return normalized
@@ -226,10 +331,8 @@ def effective_adjustment_name(adjustment_type: str, description: str | None) -> 
         return normalized
     defaults = {
         "VACATION": "Vacaciones",
-        "OUT_OF_PRODUCTION_BONUS": "Bono fuera de produccion",
         "BONUS": "Bono",
         "MANUAL_ADJUSTMENT": "Ajuste manual",
-        "DISCOUNT": "Descuento",
     }
     return defaults[normalize_adjustment_type(adjustment_type)]
 
@@ -278,6 +381,18 @@ def _history_rows_for_adjustments(db: Session, adjustment_ids: list[int]) -> dic
     for audit, username in rows:
         grouped.setdefault(audit.record_id, []).append((audit, username))
     return grouped
+
+
+def _serialize_holiday(holiday: PayrollHoliday) -> HolidayResponse:
+    return HolidayResponse(
+        id=holiday.id if holiday.id else None,
+        holiday_date=holiday.holiday_date,
+        holiday_name=holiday.holiday_name,
+        holiday_scope=holiday.holiday_scope,
+        active=holiday.active,
+        is_default=holiday.is_default,
+        editable=bool(holiday.id),
+    )
 
 
 def normalize_cost_center(cost_center: str | None) -> str | None:
@@ -515,6 +630,71 @@ def list_cycles(
     return list(db.scalars(select(PayrollCycle).order_by(PayrollCycle.start_date.desc())).all())
 
 
+@app.get("/api/holidays", response_model=list[HolidayResponse])
+def list_holidays(
+    year: int,
+    month: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("payroll.read")),
+) -> list[HolidayResponse]:
+    if month < 1 or month > 12:
+        raise HTTPException(status_code=400, detail="Mes invalido.")
+    rows = holiday_service.list_month(db, year, month)
+    if holiday_service.table_exists(db):
+        db.commit()
+    return [_serialize_holiday(row) for row in rows]
+
+
+@app.post("/api/holidays", response_model=HolidayResponse, status_code=201)
+def create_holiday(
+    payload: HolidayCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("payroll.edit")),
+) -> HolidayResponse:
+    if current_user.role.role_name != "ADMIN":
+        raise HTTPException(status_code=403, detail="Solo ADMIN puede editar feriados.")
+    if not holiday_service.table_exists(db):
+        raise HTTPException(status_code=400, detail="La base de datos no tiene habilitada la tabla payroll_holidays.")
+    holiday = PayrollHoliday(
+        holiday_date=payload.holiday_date,
+        holiday_name=" ".join(payload.holiday_name.strip().split()),
+        holiday_scope=normalize_holiday_scope(payload.holiday_scope),
+        active=payload.active,
+        is_default=False,
+        created_by=current_user.id,
+        updated_by=current_user.id,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+    db.add(holiday)
+    db.commit()
+    db.refresh(holiday)
+    return _serialize_holiday(holiday)
+
+
+@app.put("/api/holidays/{holiday_id}", response_model=HolidayResponse)
+def update_holiday(
+    holiday_id: int,
+    payload: HolidayUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("payroll.edit")),
+) -> HolidayResponse:
+    if current_user.role.role_name != "ADMIN":
+        raise HTTPException(status_code=403, detail="Solo ADMIN puede editar feriados.")
+    holiday = db.get(PayrollHoliday, holiday_id)
+    if holiday is None:
+        raise HTTPException(status_code=404, detail="Feriado no encontrado.")
+    holiday.holiday_date = payload.holiday_date
+    holiday.holiday_name = " ".join(payload.holiday_name.strip().split())
+    holiday.holiday_scope = normalize_holiday_scope(payload.holiday_scope)
+    holiday.active = payload.active
+    holiday.updated_by = current_user.id
+    holiday.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(holiday)
+    return _serialize_holiday(holiday)
+
+
 @app.get("/api/search/records", response_model=SearchResponse)
 def search_records(
     cycle_from_id: int,
@@ -592,25 +772,32 @@ def search_employee_options(
             if normalized_role_type not in {"DRIVER", "ASSISTANT"}:
                 raise HTTPException(status_code=400, detail="Cargo invalido.")
             filters.append(PayrollRecord.role_type == normalized_role_type)
-    rows = db.execute(
-        select(
-            func.min(Employee.id).label("id"),
-            Employee.employee_name,
-            func.max(Employee.contract_type).label("contract_type"),
+    employees = list(
+        db.scalars(
+            select(Employee)
+            .join(PayrollRecord, PayrollRecord.employee_id == Employee.id)
+            .where(*filters)
+            .order_by(Employee.id)
+        ).all()
+    )
+    grouped: dict[str, list[Employee]] = {}
+    for employee in employees:
+        key = normalize_employee_name(employee.employee_name)
+        grouped.setdefault(key, []).append(employee)
+    rows = []
+    for matches in grouped.values():
+        worker = min(matches, key=lambda item: item.id)
+        rows.append(
+            SearchEmployeeOptionResponse(
+                id=worker.id,
+                employee_name=worker.employee_name,
+                contract_type=next((item.contract_type for item in matches if item.contract_type), None),
+                rut=next((item.rut for item in matches if item.rut), None),
+                email=next((item.email for item in matches if item.email), None),
+                cargo=next((item.cargo for item in matches if item.cargo), None),
+            )
         )
-        .join(PayrollRecord, PayrollRecord.employee_id == Employee.id)
-        .where(*filters)
-        .group_by(Employee.employee_name)
-        .order_by(Employee.employee_name)
-    ).all()
-    return [
-        SearchEmployeeOptionResponse(
-            id=row.id,
-            employee_name=row.employee_name,
-            contract_type=row.contract_type,
-        )
-        for row in rows
-    ]
+    return sorted(rows, key=lambda item: item.employee_name)
 
 
 @app.get("/api/settlements/employees", response_model=list[EmployeeOptionResponse])
@@ -642,23 +829,25 @@ def list_workers(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission("payroll.read")),
 ) -> list[WorkerListItemResponse]:
-    rows = db.execute(
-        select(
-            func.min(Employee.id).label("id"),
-            Employee.employee_name,
-            func.max(Employee.contract_type).label("contract_type"),
+    employees = list(db.scalars(select(Employee).order_by(Employee.id)).all())
+    grouped: dict[str, list[Employee]] = {}
+    for employee in employees:
+        key = normalize_employee_name(employee.employee_name)
+        grouped.setdefault(key, []).append(employee)
+    rows = []
+    for matches in grouped.values():
+        worker = min(matches, key=lambda item: item.id)
+        rows.append(
+            WorkerListItemResponse(
+                id=worker.id,
+                employee_name=grouped_employee_display_name(matches),
+                contract_type=next((item.contract_type for item in matches if item.contract_type), None),
+                rut=next((item.rut for item in matches if item.rut), None),
+                email=next((item.email for item in matches if item.email), None),
+                cargo=next((item.cargo for item in matches if item.cargo), None),
+            )
         )
-        .group_by(Employee.employee_name)
-        .order_by(Employee.employee_name)
-    ).all()
-    return [
-        WorkerListItemResponse(
-            id=row.id,
-            employee_name=row.employee_name,
-            contract_type=row.contract_type,
-        )
-        for row in rows
-    ]
+    return sorted(rows, key=lambda item: item.employee_name)
 
 
 @app.post("/api/workers", response_model=WorkerListItemResponse, status_code=201)
@@ -673,31 +862,47 @@ def create_worker(
     if not employee_name:
         raise HTTPException(status_code=400, detail="Nombre de trabajador requerido.")
     contract_type = normalize_contract_type(payload.contract_type)
-    matches = list(
-        db.scalars(select(Employee).where(Employee.employee_name == employee_name)).all()
-    )
+    rut = normalize_rut(payload.rut)
+    email = normalize_email(payload.email)
+    cargo = normalize_cargo(payload.cargo)
+    matches = find_related_employees_by_name(db, employee_name)
     if matches:
         for employee in matches:
             employee.contract_type = contract_type
+            employee.rut = rut
+            employee.email = email
+            employee.cargo = cargo
+            if not employee.first_name and not employee.paternal_surname:
+                apply_employee_name_parts(employee, employee_name)
         db.commit()
         worker = min(matches, key=lambda item: item.id)
         return WorkerListItemResponse(
             id=worker.id,
-            employee_name=worker.employee_name,
+            employee_name=grouped_employee_display_name(matches),
             contract_type=contract_type,
+            rut=rut,
+            email=email,
+            cargo=cargo,
         )
     worker = Employee(
         employee_name=employee_name,
         role_type="UNASSIGNED",
         contract_type=contract_type,
+        rut=rut,
+        email=email,
+        cargo=cargo,
     )
+    apply_employee_name_parts(worker, employee_name)
     db.add(worker)
     db.commit()
     db.refresh(worker)
     return WorkerListItemResponse(
         id=worker.id,
-        employee_name=worker.employee_name,
+        employee_name=employee_display_name(worker),
         contract_type=worker.contract_type,
+        rut=worker.rut,
+        email=worker.email,
+        cargo=worker.cargo,
     )
 
 
@@ -714,17 +919,64 @@ def update_worker(
     if worker is None:
         raise HTTPException(status_code=404, detail="Trabajador no encontrado.")
     contract_type = normalize_contract_type(payload.contract_type)
-    matches = list(
-        db.scalars(select(Employee).where(Employee.employee_name == worker.employee_name)).all()
-    )
+    rut = normalize_rut(payload.rut)
+    email = normalize_email(payload.email)
+    cargo = normalize_cargo(payload.cargo)
+    matches = find_related_employees_by_name(db, worker.employee_name)
     for employee in matches:
         employee.contract_type = contract_type
+        employee.rut = rut
+        employee.email = email
+        employee.cargo = cargo
+        if not employee.first_name and not employee.paternal_surname:
+            apply_employee_name_parts(employee, employee.employee_name)
     db.commit()
     return WorkerListItemResponse(
         id=worker.id,
-        employee_name=worker.employee_name,
+        employee_name=grouped_employee_display_name(matches),
         contract_type=contract_type,
+        rut=rut,
+        email=email,
+        cargo=cargo,
     )
+
+
+@app.delete("/api/workers/{worker_id}", status_code=204)
+def delete_worker(
+    worker_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("payroll.edit")),
+) -> Response:
+    if current_user.role.role_name != "ADMIN":
+        raise HTTPException(status_code=403, detail="Solo ADMIN puede eliminar trabajadores.")
+    worker = db.get(Employee, worker_id)
+    if worker is None:
+        raise HTTPException(status_code=404, detail="Trabajador no encontrado.")
+
+    matches = find_related_employees_by_name(db, worker.employee_name)
+    employee_ids = [employee.id for employee in matches]
+    has_records = db.scalar(
+        select(func.count()).select_from(PayrollRecord).where(PayrollRecord.employee_id.in_(employee_ids))
+    )
+    has_adjustments = db.scalar(
+        select(func.count()).select_from(PayrollManualAdjustment).where(
+            PayrollManualAdjustment.employee_id.in_(employee_ids)
+        )
+    )
+    has_overrides = db.scalar(
+        select(func.count()).select_from(PayrollCellOverride).where(
+            PayrollCellOverride.employee_id.in_(employee_ids)
+        )
+    )
+    if (has_records or 0) > 0 or (has_adjustments or 0) > 0 or (has_overrides or 0) > 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No se puede eliminar el trabajador porque tiene registros historicos asociados.",
+        )
+    for employee in matches:
+        db.delete(employee)
+    db.commit()
+    return Response(status_code=204)
 
 
 @app.get("/api/manual-adjustments", response_model=list[ManualAdjustmentResponse])
@@ -737,9 +989,11 @@ def list_manual_adjustments(
     employee = db.get(Employee, employee_id)
     if employee is None:
         raise HTTPException(status_code=404, detail="Trabajador no encontrado.")
-    related_employee_ids = list(
-        db.scalars(select(Employee.id).where(Employee.employee_name == employee.employee_name)).all()
-    )
+    related_employee_ids = [
+        item.id
+        for item in db.scalars(select(Employee).order_by(Employee.id)).all()
+        if names_refer_to_same_person(item.employee_name, employee.employee_name)
+    ]
     adjustments = list(
         db.scalars(
             select(PayrollManualAdjustment)
@@ -988,7 +1242,7 @@ def export_settlement(
     normalized_cost_center = normalize_cost_center(normalized_cost_center)
     normalized_role_type = normalize_role_type(normalized_role_type)
     normalized_format = file_format.strip().lower()
-    if normalized_format not in {"xlsx", "csv"}:
+    if normalized_format not in {"xlsx", "csv", "pdf"}:
         raise HTTPException(status_code=400, detail="Formato de exportacion invalido.")
 
     settlement = build_settlement_payload(
@@ -1007,6 +1261,8 @@ def export_settlement(
     content = (
         export_xlsx_bytes(settlement)
         if normalized_format == "xlsx"
+        else export_pdf_bytes(settlement)
+        if normalized_format == "pdf"
         else export_csv_bytes(settlement)
     )
     log_export(
@@ -1022,6 +1278,8 @@ def export_settlement(
     media_type = (
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         if normalized_format == "xlsx"
+        else "application/pdf"
+        if normalized_format == "pdf"
         else "text/csv; charset=utf-8"
     )
     return Response(
@@ -1054,12 +1312,12 @@ def update_settlement_rates(
         employee = db.get(Employee, payload.employee_id)
         if employee is None:
             raise LookupError("Trabajador no encontrado.")
-        contract_type = db.scalar(
-            select(Employee.contract_type)
-            .where(Employee.employee_name == employee.employee_name)
-            .where(Employee.contract_type.is_not(None))
-            .limit(1)
-        )
+        related_employees = [
+            item
+            for item in db.scalars(select(Employee).order_by(Employee.id)).all()
+            if names_refer_to_same_person(item.employee_name, employee.employee_name)
+        ]
+        contract_type = next((item.contract_type for item in related_employees if item.contract_type), None)
         concept_rate_service.create_versions(
             db,
             cycle_id=payload.cycle_id,

@@ -1,16 +1,10 @@
 $workspaceRoot = "C:\Users\jtvid\OneDrive\Documentos\Unisan Payroll"
 $backendDir = Join-Path $workspaceRoot "backend"
 $frontendDir = Join-Path $workspaceRoot "frontend\working_ui"
+$backendScript = Join-Path $workspaceRoot "run_local_backend.ps1"
 $frontendScript = Join-Path $workspaceRoot "run_local_frontend.ps1"
 $backendPort = 8010
 $frontendPort = 5500
-$backendCommand = @"
-$env:PYTHONPATH = "C:\Users\jtvid\OneDrive\Documentos\Unisan Payroll\backend\.test_deps;C:\Users\jtvid\OneDrive\Documentos\Unisan Payroll\backend"
-$env:PAYROLL_DATABASE_URL = "sqlite:///./payroll_dev.db"
-$env:PAYROLL_JWT_SECRET = "un-secreto-local-de-al-menos-32-caracteres"
-Set-Location "C:\Users\jtvid\OneDrive\Documentos\Unisan Payroll\backend"
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8010
-"@
 
 function Stop-PortProcess {
     param(
@@ -43,7 +37,7 @@ Start-Process -FilePath "powershell.exe" `
     -ArgumentList @(
         "-NoExit",
         "-ExecutionPolicy", "Bypass",
-        "-Command", $backendCommand
+        "-File", $backendScript
     ) `
     -WorkingDirectory $backendDir `
     -WindowStyle Minimized
@@ -53,7 +47,7 @@ Start-Process -FilePath "powershell.exe" `
     -ArgumentList @(
         "-NoExit",
         "-ExecutionPolicy", "Bypass",
-        "-Command", "& `"$frontendScript`""
+        "-File", $frontendScript
     ) `
     -WorkingDirectory $frontendDir `
     -WindowStyle Minimized
