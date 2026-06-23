@@ -61,6 +61,6 @@ jobs:
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
         with:
-          app-name: "unisanpayroll"
+          app-name: ${{ secrets.AZURE_PAYROLL_WEBAPP_NAME }}
           slot-name: "Production"
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_C36DC19D36F747E282567E9FD9D2D46C }}
+          publish-profile: ${{ secrets.AZURE_PAYROLL_PUBLISH_PROFILE }}
