@@ -363,7 +363,20 @@ class SettlementEngine:
         if not records:
             raise LookupError("No existen registros para la liquidacion seleccionada.")
 
-        context_pairs = sorted({(record.cost_center, record.role_type) for record in records})
+        override_rows = list(
+            db.scalars(
+                select(PayrollCellOverride).where(
+                    PayrollCellOverride.cycle_id == cycle_id,
+                    PayrollCellOverride.employee_id == employee_id,
+                )
+            ).all()
+        )
+        context_pairs = sorted(
+            {
+                *((record.cost_center, record.role_type) for record in records),
+                *((override.cost_center, override.role_type) for override in override_rows),
+            }
+        )
         concepts = list(
             db.scalars(
                 select(PayrollConcept)
@@ -386,12 +399,7 @@ class SettlementEngine:
 
         overrides_by_key = {
             (override.concept_id, override.work_date): override.override_value
-            for override in db.scalars(
-                select(PayrollCellOverride).where(
-                    PayrollCellOverride.cycle_id == cycle_id,
-                    PayrollCellOverride.employee_id == employee_id,
-                )
-            ).all()
+            for override in override_rows
         }
         adjustments = list(
             db.scalars(
@@ -546,9 +554,13 @@ class SettlementEngine:
             variable_daily=variable_daily,
             worked_day=worked_day,
         )
+        adjustment_line_totals = {
+            adjustment.id: (adjustment.units or Decimal("1")) * adjustment.amount
+            for adjustment in adjustments
+        }
         adjustments_total = sum(
             (
-                adjustment.amount
+                adjustment_line_totals[adjustment.id]
                 for adjustment in adjustments
                 if adjustment.adjustment_type in PRODUCTION_ADJUSTMENT_TYPES
             ),
@@ -556,33 +568,24 @@ class SettlementEngine:
         )
         discounts_total = sum(
             (
-                adjustment.amount
+                adjustment_line_totals[adjustment.id]
                 for adjustment in adjustments
                 if adjustment.adjustment_type == "DISCOUNT"
             ),
             ZERO,
         )
-        adjustments_by_type = {
-            adjustment_type: sum(
-                (
-                    adjustment.amount
-                    for adjustment in adjustments
-                    if adjustment.adjustment_type == adjustment_type
-                ),
-                ZERO,
-            )
-            for adjustment_type, _ in ADJUSTMENT_ROW_ORDER
-        }
         production_total = total_to_pay + week_corrida_total + adjustments_total - discounts_total
         adjustment_rows = [
             self._calculated_row(
-                row_type=f"adjustment_{adjustment_type.lower()}",
-                concept_name=label,
-                total=adjustments_by_type[adjustment_type],
+                row_type=f"adjustment_{adjustment.adjustment_type.lower()}",
+                concept_name=adjustment.adjustment_name,
+                units=adjustment.units or Decimal("1"),
+                rate=adjustment.amount,
+                total=adjustment_line_totals[adjustment.id],
                 daily_values={work_date: None for work_date in dates},
             )
-            for adjustment_type, label in ADJUSTMENT_ROW_ORDER
-            if adjustments_by_type[adjustment_type] != ZERO
+            for adjustment in adjustments
+            if adjustment_line_totals[adjustment.id] != ZERO
         ]
         rows = rows + [
             self._calculated_row(
@@ -667,6 +670,9 @@ class SettlementEngine:
         user_id: int,
     ) -> dict[str, object]:
         valid_fields = concept_record_fields()
+        cycle = db.get(PayrollCycle, cycle_id)
+        if cycle is None:
+            raise LookupError("Ciclo no encontrado.")
         employee = db.get(Employee, employee_id)
         if employee is None:
             raise LookupError("Trabajador no encontrado.")
@@ -685,6 +691,8 @@ class SettlementEngine:
                     raise ValueError("El concepto no pertenece a la liquidacion actual.")
                 if concept.db_field not in valid_fields:
                     raise ValueError("El concepto apunta a un campo reservado o invalido.")
+                if work_date < cycle.start_date or work_date > cycle.end_date:
+                    raise ValueError("La fecha no pertenece al ciclo seleccionado.")
                 records = list(
                     db.scalars(
                         select(PayrollRecord)
@@ -699,7 +707,23 @@ class SettlementEngine:
                     ).all()
                 )
                 if not records:
-                    raise LookupError("No existe un registro base para la celda seleccionada.")
+                    has_context_records = db.scalar(
+                        select(func.count(PayrollRecord.id)).where(
+                            PayrollRecord.cycle_id == cycle_id,
+                            PayrollRecord.employee_id.in_(related_employee_ids),
+                            PayrollRecord.cost_center == concept.cost_center,
+                            PayrollRecord.role_type == concept.role_type,
+                        )
+                    )
+                    if not has_context_records:
+                        has_cycle_records = db.scalar(
+                            select(func.count(PayrollRecord.id)).where(
+                                PayrollRecord.cycle_id == cycle_id,
+                                PayrollRecord.employee_id.in_(related_employee_ids),
+                            )
+                        )
+                        if cost_center is not None or role_type is not None or not has_cycle_records:
+                            raise LookupError("No existen registros base para la actividad seleccionada.")
                 existing_override = db.scalar(
                     select(PayrollCellOverride)
                     .where(
@@ -839,6 +863,8 @@ class SettlementEngine:
         concept_name: str,
         total: Decimal | None,
         daily_values: dict[date, Decimal | None],
+        units: Decimal | None = None,
+        rate: Decimal | None = None,
     ) -> dict[str, object]:
         return {
             "row_type": row_type,
@@ -847,8 +873,8 @@ class SettlementEngine:
             "concept_code": row_type.upper(),
             "concept_name": concept_name,
             "db_field": None,
-            "units": None,
-            "rate": None,
+            "units": units,
+            "rate": rate,
             "total": total,
             "editable": False,
             "daily_values": [

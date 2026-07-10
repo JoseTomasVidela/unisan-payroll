@@ -427,6 +427,18 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
             _format_peso_number(amount),
         ]]
 
+    def _build_adjustment_rows() -> list[list[str]]:
+        rows: list[list[str]] = []
+        for row in adjustment_rows:
+            amount = Decimal(str(row["total"] or 0))
+            rows.append([
+                str(row["concept_name"]).upper(),
+                _format_peso_number(row["units"]),
+                _format_peso_number(row["rate"]),
+                _format_peso_number(amount),
+            ])
+        return rows
+
     def _draw_table(stream: list[str], rows: list[list[str]], y_top: int, headers: list[str]) -> int:
         table_width = sum(table_col_widths)
         header_bottom = y_top - table_row_height
@@ -479,6 +491,7 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
 
     main_rows = _build_main_rows()
     week_rows = _build_week_corrida_rows()
+    pdf_adjustment_rows = _build_adjustment_rows()
 
     pages: list[str] = []
     page_index = 1
@@ -502,12 +515,17 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
         ensure_space(_estimate_section_height(len(week_rows)))
         y = _draw_table(stream, week_rows, y, week_table_headers)
 
+    if pdf_adjustment_rows:
+        y -= 8
+        ensure_space(_estimate_section_height(len(pdf_adjustment_rows)))
+        y = _draw_table(stream, pdf_adjustment_rows, y, week_table_headers)
+
     y -= 8
     total_box_height = 18
     total_table_width = sum(table_col_widths)
     left_total_width = sum(table_col_widths[:3])
     right_total_width = table_col_widths[3]
-    final_total = Decimal(str(settlement["total_to_pay"])) + Decimal(str(settlement["week_corrida"]))
+    final_total = Decimal(str(settlement["production_total"]))
 
     ensure_space(110)
     _rect(stream, margin, y - total_box_height, left_total_width, total_box_height, (1.0, 0.973, 0.710))
@@ -543,6 +561,10 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
             y -= 8
             ensure_space(_estimate_section_height(len(week_rows)))
             y = _draw_table(stream, week_rows, y, week_table_headers)
+        if pdf_adjustment_rows:
+            y -= 8
+            ensure_space(_estimate_section_height(len(pdf_adjustment_rows)))
+            y = _draw_table(stream, pdf_adjustment_rows, y, week_table_headers)
         y -= 8
         ensure_space(110)
         _rect(stream, margin, y - total_box_height, left_total_width, total_box_height, (1.0, 0.973, 0.710))

@@ -565,6 +565,15 @@ input {
     padding: 4px 0;
 }
 
+input.checklist-summary {
+    cursor: text;
+    background-image: linear-gradient(45deg, transparent 50%, #6c7884 50%), linear-gradient(135deg, #6c7884 50%, transparent 50%);
+    background-position: calc(100% - 16px) 16px, calc(100% - 11px) 16px;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    padding-right: 28px;
+}
+
 .result-stack {
     display: grid;
     gap: 16px;
@@ -906,16 +915,95 @@ input {
 }
 
 .editable-liquidation-modal {
+    height: min(92vh, 880px);
     max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.modal-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+
+.modal-title-row .btn {
+    margin-left: auto;
+}
+
+.modal-title-row h2 {
+    margin: 0;
+}
+
+.editable-liquidation-modal .settlement-meta {
+    flex-shrink: 0;
+}
+
+#search-edit-spreadsheet {
+    flex: 1;
+    min-height: 0;
     overflow: auto;
 }
 
+#search-edit-spreadsheet .sheet-table {
+    min-width: max-content;
+}
+
+#search-edit-spreadsheet .sheet-table th,
+#search-edit-spreadsheet .sheet-table td {
+    padding: 2px 3px;
+}
+
+#search-edit-spreadsheet .sheet-table .fixed {
+    min-width: 205px;
+    max-width: 205px;
+}
+
+#search-edit-spreadsheet .sheet-table .units {
+    left: 205px;
+    min-width: 68px;
+    max-width: 68px;
+}
+
+#search-edit-spreadsheet .sheet-table .rate {
+    left: 273px;
+    min-width: 48px;
+    max-width: 48px;
+}
+
+#search-edit-spreadsheet .sheet-table .total {
+    left: 321px;
+    min-width: 70px;
+    max-width: 70px;
+}
+
+#search-edit-spreadsheet .sheet-table th:nth-child(n+5),
+#search-edit-spreadsheet .sheet-table td:nth-child(n+5) {
+    min-width: 58px;
+    max-width: 58px;
+    width: 58px;
+}
+
+#search-edit-spreadsheet .sheet-table .date-head,
+#search-edit-spreadsheet .sheet-table .status-head {
+    min-width: 58px;
+}
+
+#search-edit-spreadsheet .sheet-table input.cell-input {
+    width: 48px;
+    min-width: 48px;
+}
+
 .editable-liquidation-modal .actions {
-    position: sticky;
-    bottom: 0;
+    flex-shrink: 0;
+    justify-content: flex-end;
     background: white;
     padding-top: 12px;
     margin-top: 12px;
+    border-top: 1px solid #e5edf2;
 }
 
 .worker-modal-box {
@@ -928,6 +1016,91 @@ input {
 
 .rate-form-grid {
     grid-template-columns: repeat(2, minmax(160px, 1fr));
+}
+
+.modal .add-activity-modal-box {
+    width: min(760px, 94vw);
+    min-width: min(680px, 94vw);
+    height: min(90vh, 900px);
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.add-activity-title-row {
+    flex-shrink: 0;
+}
+
+.add-activity-title-row .actions {
+    margin-left: auto;
+    justify-content: flex-end;
+}
+
+.add-activity-form-grid {
+    flex-shrink: 0;
+    grid-template-columns: 1fr 1fr;
+}
+
+.add-activity-modal-box .table-wrap {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    overflow-y: auto;
+    overflow-x: auto;
+    border: 1px solid #d8dee4;
+    border-radius: 4px;
+    margin-top: 12px;
+}
+
+.add-activity-modal-box table {
+    width: 100%;
+    table-layout: fixed;
+}
+
+.add-activity-modal-box th,
+.add-activity-modal-box td {
+    padding: 8px 14px;
+    vertical-align: middle;
+}
+
+.add-activity-modal-box th:nth-child(1),
+.add-activity-modal-box td:nth-child(1) {
+    width: 38%;
+}
+
+.add-activity-modal-box th:nth-child(2),
+.add-activity-modal-box td:nth-child(2) {
+    width: 15%;
+}
+
+.add-activity-modal-box th:nth-child(3),
+.add-activity-modal-box td:nth-child(3),
+.add-activity-modal-box th:nth-child(4),
+.add-activity-modal-box td:nth-child(4) {
+    width: 15%;
+}
+
+.add-activity-modal-box th:nth-child(5),
+.add-activity-modal-box td:nth-child(5) {
+    width: 17%;
+    text-align: right;
+}
+
+.add-activity-row.selected {
+    background: #d8edf7;
+    outline: 2px solid #3f98bf;
+    outline-offset: -2px;
+}
+
+.add-activity-row {
+    cursor: pointer;
+}
+
+.add-activity-select-btn.selected {
+    background: #3f98bf;
+    border-color: #3f98bf;
+    color: #fff;
 }
 
 .adjustment-form-grid.compact {

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>UNISAN | Liquidaciones</title>
-    <link rel="stylesheet" href="styles.css?v=3c21" />
+    <link rel="stylesheet" href="styles.css?v=3c35" />
 </head>
 <body>
     <section id="login-screen" class="login-screen">
@@ -150,6 +150,10 @@
                                     </label>
                                 </div>
                                 <div class="actions">
+                                    <button class="btn secondary" id="edit-btn">Editar</button>
+                                    <button class="btn secondary hidden" id="liquidation-add-activity-btn">Agregar Actividad</button>
+                                    <button class="btn primary hidden" id="save-btn">Guardar</button>
+                                    <button class="btn secondary hidden" id="cancel-edit-btn">Cancelar</button>
                                     <button class="btn secondary" id="liquidation-export-excel-btn">Exportar Excel</button>
                                     <button class="btn secondary" id="liquidation-export-pdf-btn">Exportar PDF</button>
                                     <button class="btn secondary" id="liquidation-email-btn">Enviar por Email</button>
@@ -183,7 +187,7 @@
                                 <div>
                                     <label>Trabajadores</label>
                                     <div class="multi-select">
-                                        <button type="button" id="search-employee-summary" class="checklist-summary dropdown-toggle">Seleccione uno o más trabajadores</button>
+                                        <input id="search-employee-summary" class="checklist-summary dropdown-toggle" type="text" placeholder="Buscar trabajador" autocomplete="off" />
                                         <div id="search-employee" class="checklist-box dropdown-panel hidden"></div>
                                     </div>
                                 </div>
@@ -464,10 +468,9 @@
                 </label>
             </div>
             <div class="actions left">
-                <button id="adjustment-new-btn" class="btn secondary">Nuevo</button>
-                <button id="adjustment-save-btn" class="btn primary">Crear ajuste</button>
-                <button id="adjustment-delete-btn" class="btn secondary hidden">Eliminar ajuste</button>
-                <button id="adjustment-close-btn" class="btn secondary">Cerrar</button>
+                <button id="adjustment-add-btn" class="btn secondary">Agregar</button>
+                <button id="adjustment-save-btn" class="btn primary">Guardar</button>
+                <button id="adjustment-close-btn" class="btn secondary">Cancelar</button>
             </div>
             <div class="adjustment-layout">
                 <div>
@@ -491,7 +494,10 @@
 
     <div id="search-edit-modal" class="modal hidden">
         <div class="modal-box extra-wide editable-liquidation-modal">
-            <h2>Editar liquidacion</h2>
+            <div class="modal-title-row">
+                <h2>Editar liquidacion</h2>
+                <button id="add-activity-btn" class="btn secondary">Agregar Actividad</button>
+            </div>
             <div class="settlement-meta">
                 <strong id="search-edit-employee-name"></strong>
                 <span>Vista: <b id="search-edit-role">Consolidado</b></span>
@@ -502,6 +508,40 @@
             <div class="actions">
                 <button id="search-edit-modal-cancel-btn" class="btn secondary">Cancelar</button>
                 <button id="search-edit-modal-save-btn" class="btn primary">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="add-activity-modal" class="modal hidden">
+        <div class="modal-box add-activity-modal-box">
+            <div class="modal-title-row add-activity-title-row">
+                <h2>Agregar Actividad</h2>
+                <div class="actions">
+                    <button id="add-activity-cancel-btn" class="btn secondary">Cancelar</button>
+                    <button id="add-activity-confirm-btn" class="btn primary" disabled>Agregar</button>
+                </div>
+            </div>
+            <div class="form-grid add-activity-form-grid">
+                <label>Filtro de tarifas
+                    <select id="add-activity-context"></select>
+                </label>
+                <label>Buscar actividad
+                    <input id="add-activity-search" type="text" placeholder="Nombre de actividad" />
+                </label>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Actividad</th>
+                            <th>Centro</th>
+                            <th>Cargo</th>
+                            <th>Contrato</th>
+                            <th>Tarifa</th>
+                        </tr>
+                    </thead>
+                    <tbody id="add-activity-table-body"></tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -540,6 +580,6 @@
     </div>
 
     <script src="config.js?v=1"></script>
-    <script src="app.js?v=3c27"></script>
+    <script src="app.js?v=3c35"></script>
 </body>
 </html>

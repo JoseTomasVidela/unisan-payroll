@@ -209,6 +209,8 @@ def row_hash(values: tuple[Any, ...], relevant_indexes: list[int]) -> str:
 
 def validate_headers(actual: tuple[Any, ...], expected: list[str | None]) -> None:
     normalized = [normalize_text(item) or None for item in actual[: len(expected)]]
+    if len(normalized) < len(expected):
+        normalized.extend([None] * (len(expected) - len(normalized)))
     if normalized != expected:
         differences = [
             f"{index + 1}: esperado={wanted!r}, recibido={received!r}"

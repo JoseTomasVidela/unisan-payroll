@@ -49,7 +49,7 @@ def test_admin_can_create_manual_adjustment_and_recalculate_production_total(cli
         headers=admin_headers(client),
     )
     assert settlement.status_code == 200
-    assert Decimal(settlement.json()["production_total"]) == Decimal("125")
+    assert Decimal(settlement.json()["production_total"]) == Decimal("112.5")
 
 
 def test_admin_can_create_manual_adjustment_without_description(client, db_factory):
@@ -177,12 +177,19 @@ def test_admin_can_soft_delete_manual_adjustment(client, db_factory):
     assert body["deleted_at"] is not None
     assert any(item["action_type"] == "DELETE_MANUAL_ADJUSTMENT" for item in body["history"])
 
+    listed = client.get(
+        f"/api/manual-adjustments?cycle_id=1&employee_id={driver_id}",
+        headers=admin_headers(client),
+    )
+    assert listed.status_code == 200
+    assert listed.json() == []
+
     settlement = client.get(
         f"/api/liquidations?cycle_id=1&employee_id={driver_id}",
         headers=admin_headers(client),
     )
     assert settlement.status_code == 200
-    assert Decimal(settlement.json()["production_total"]) == Decimal("112.5")
+    assert Decimal(settlement.json()["production_total"]) == Decimal("87.5")
 
 
 def test_user_cannot_create_edit_or_delete_manual_adjustments(client, db_factory):

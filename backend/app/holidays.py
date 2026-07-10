@@ -61,7 +61,7 @@ class HolidayService:
     table_name = "payroll_holidays"
 
     def table_exists(self, db: Session) -> bool:
-        return self.table_name in inspect(db.bind).get_table_names()
+        return inspect(db.connection()).has_table(self.table_name)
 
     def ensure_defaults(self, db: Session, year: int) -> None:
         if not self.table_exists(db):

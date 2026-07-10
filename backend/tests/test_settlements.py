@@ -363,7 +363,18 @@ def test_settlement_production_total_includes_manual_adjustments(client, db_fact
                     role_type="ALL",
                     adjustment_type="BONUS",
                     adjustment_name="Bono especial",
+                    units=Decimal("3"),
                     amount=Decimal("7"),
+                ),
+                PayrollManualAdjustment(
+                    cycle_id=1,
+                    employee_id=driver_id,
+                    cost_center="ALL",
+                    role_type="ALL",
+                    adjustment_type="BONUS",
+                    adjustment_name="Bono asistencia",
+                    units=Decimal("2"),
+                    amount=Decimal("4"),
                 ),
                 PayrollManualAdjustment(
                     cycle_id=1,
@@ -394,19 +405,24 @@ def test_settlement_production_total_includes_manual_adjustments(client, db_fact
     vacation_row = next(
         row for row in body["rows"] if row["row_type"] == "adjustment_vacation"
     )
-    bonus_row = next(
-        row for row in body["rows"] if row["row_type"] == "adjustment_bonus"
-    )
+    bonus_rows = [row for row in body["rows"] if row["row_type"] == "adjustment_bonus"]
     discount_row = next(
         row for row in body["rows"] if row["row_type"] == "adjustment_discount"
     )
     assert Decimal(body["total_to_pay"]) == Decimal("75")
     assert Decimal(body["week_corrida"]) == Decimal("12.5")
     assert Decimal(vacation_row["total"]) == Decimal("10")
-    assert Decimal(bonus_row["total"]) == Decimal("7")
+    assert len(bonus_rows) == 2
+    assert [row["concept_name"] for row in bonus_rows] == ["Bono especial", "Bono asistencia"]
+    assert Decimal(bonus_rows[0]["units"]) == Decimal("3")
+    assert Decimal(bonus_rows[0]["rate"]) == Decimal("7")
+    assert Decimal(bonus_rows[0]["total"]) == Decimal("21")
+    assert Decimal(bonus_rows[1]["units"]) == Decimal("2")
+    assert Decimal(bonus_rows[1]["rate"]) == Decimal("4")
+    assert Decimal(bonus_rows[1]["total"]) == Decimal("8")
     assert Decimal(discount_row["total"]) == Decimal("3")
-    assert Decimal(production_total["total"]) == Decimal("101.5")
-    assert Decimal(body["production_total"]) == Decimal("101.5")
+    assert Decimal(production_total["total"]) == Decimal("123.5")
+    assert Decimal(body["production_total"]) == Decimal("123.5")
 
 
 def test_settlement_employee_options_are_filtered_by_context(client, db_factory):
@@ -808,7 +824,7 @@ def test_admin_updates_single_daily_cell_and_recalculates(client, db_factory):
     assert Decimal(dispatch["units"]) == Decimal("8")
     assert Decimal(dispatch["total"]) == Decimal("80")
     assert Decimal(total_row["total"]) == Decimal("105")
-    assert Decimal(body["production_total"]) == Decimal("157.5")
+    assert Decimal(body["production_total"]) == Decimal("122.5")
 
     with db_factory() as db:
         updated = db.scalar(select(PayrollRecord).where(PayrollRecord.id == 3))
@@ -855,6 +871,128 @@ def test_update_daily_cell_with_multiple_records_creates_override(client, db_fac
             select(PayrollCellOverride).where(PayrollCellOverride.work_date == date(2026, 5, 22))
         )
         assert override.override_value == Decimal("4")
+
+
+def test_admin_adds_activity_with_only_manual_override_and_recalculates(client, db_factory):
+    driver_id, _ = seed_settlement(db_factory)
+    with db_factory() as db:
+        admin = db.scalar(select(User).where(User.username == "admin"))
+        added = PayrollConcept(
+            concept_code="SATURDAY_AFTER_1600",
+            concept_name="Sabado > 16:00",
+            db_field="saturday_after_1600_qty",
+            source_type="DR",
+            cost_center="DR",
+            role_type="DRIVER",
+            display_order=3,
+        )
+        db.add(added)
+        db.flush()
+        db.add(
+            PayrollConceptRate(
+                concept_id=added.id,
+                amount=Decimal("20"),
+                effective_from_cycle_id=1,
+                created_by=admin.id,
+            )
+        )
+        db.commit()
+        added_id = added.id
+
+    response = client.post(
+        "/api/liquidations/cells",
+        headers=auth_headers(client),
+        json={
+            "cycle_id": 1,
+            "employee_id": driver_id,
+            "updates": [
+                {
+                    "concept_id": added_id,
+                    "work_date": "2026-05-24",
+                    "value": "2",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    added_row = next(row for row in body["rows"] if row["concept_id"] == added_id)
+    total_row = next(row for row in body["rows"] if row["row_type"] == "total_to_pay")
+    assert Decimal(added_row["units"]) == Decimal("2")
+    assert Decimal(added_row["rate"]) == Decimal("20")
+    assert Decimal(added_row["total"]) == Decimal("40")
+    assert Decimal(total_row["total"]) == Decimal("115")
+
+    with db_factory() as db:
+        override = db.scalar(
+            select(PayrollCellOverride).where(
+                PayrollCellOverride.concept_id == added_id,
+                PayrollCellOverride.work_date == date(2026, 5, 24),
+            )
+        )
+        assert override is not None
+        assert override.override_value == Decimal("2")
+
+
+def test_admin_adds_consolidated_activity_without_context_records(client, db_factory):
+    driver_id, _ = seed_settlement(db_factory)
+    with db_factory() as db:
+        admin = db.scalar(select(User).where(User.username == "admin"))
+        added = PayrollConcept(
+            concept_code="SERVICE_ASSISTANT_CLEANING",
+            concept_name="Aseo",
+            db_field="cleaning_flag",
+            source_type="SERVICES",
+            cost_center="SERVICES",
+            role_type="ASSISTANT",
+            display_order=1,
+        )
+        db.add(added)
+        db.flush()
+        db.add(
+            PayrollConceptRate(
+                concept_id=added.id,
+                contract_type="OLD",
+                amount=Decimal("139"),
+                effective_from_cycle_id=1,
+                created_by=admin.id,
+            )
+        )
+        db.commit()
+        added_id = added.id
+
+    response = client.post(
+        "/api/liquidations/cells",
+        headers=auth_headers(client),
+        json={
+            "cycle_id": 1,
+            "employee_id": driver_id,
+            "updates": [
+                {
+                    "concept_id": added_id,
+                    "work_date": "2026-05-24",
+                    "value": "1",
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    added_row = next(row for row in body["rows"] if row["concept_id"] == added_id)
+    assert added_row["concept_name"] == "Servicios Auxiliar - Aseo"
+    assert Decimal(added_row["units"]) == Decimal("1")
+    with db_factory() as db:
+        override = db.scalar(
+            select(PayrollCellOverride).where(
+                PayrollCellOverride.concept_id == added_id,
+                PayrollCellOverride.work_date == date(2026, 5, 24),
+            )
+        )
+        assert override is not None
+        assert override.cost_center == "SERVICES"
+        assert override.role_type == "ASSISTANT"
 
 
 def test_non_admin_cannot_edit_daily_cells(client, db_factory):

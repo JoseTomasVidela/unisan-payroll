@@ -6,7 +6,7 @@ from zipfile import ZipFile
 
 from sqlalchemy import select
 
-from app.models import PayrollExportLog
+from app.models import PayrollExportLog, PayrollManualAdjustment
 from conftest import login
 from test_settlements import seed_settlement
 
@@ -72,6 +72,20 @@ def test_export_individual_liquidation_csv(client, db_factory):
 
 def test_export_individual_liquidation_pdf(client, db_factory):
     driver_id, _ = seed_settlement(db_factory)
+    with db_factory() as db:
+        db.add(
+            PayrollManualAdjustment(
+                cycle_id=1,
+                employee_id=driver_id,
+                cost_center="ALL",
+                role_type="ALL",
+                adjustment_type="BONUS",
+                adjustment_name="Bono exportado",
+                units=Decimal("3"),
+                amount=Decimal("2000"),
+            )
+        )
+        db.commit()
 
     response = client.get(
         (
@@ -92,6 +106,8 @@ def test_export_individual_liquidation_pdf(client, db_factory):
     assert b"DESCRIPCION" in response.content
     assert b"A PAGAR" in response.content
     assert b"SEMANA CORRIDA" in response.content
+    assert b"BONO EXPORTADO" in response.content
+    assert b"6.000" in response.content
     assert b"TOTAL" in response.content
     assert b"FIRMA TRABAJADOR" in response.content
 

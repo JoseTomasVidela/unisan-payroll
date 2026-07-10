@@ -117,6 +117,25 @@ def test_import_services_creates_three_person_slots(client, db_factory):
         assert all(record.riles_suction_flag == 3.25 for record in records)
 
 
+def test_import_services_accepts_missing_trailing_blank_column(client):
+    row = [
+        "Operador S", "S-1", "Auxiliar S1", "Auxiliar S2", date(2026, 6, 1),
+        None, time(1, 0), "OK", 1, 2, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0,
+        0, 0, 3.25, None,
+    ]
+    content = workbook_bytes(SERVICES_HEADERS[:-1], [row])
+
+    response = client.post(
+        "/api/imports/SERVICES",
+        headers=auth_headers(client),
+        data={},
+        files={"file": ("servicios.xlsx", content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["records_inserted"] == 3
+
+
 def test_missing_cycle_is_created_automatically(client, db_factory):
     row = [
         "Operador Uno", None, "OP-1", date(2026, 7, 1), None, None, "OK",

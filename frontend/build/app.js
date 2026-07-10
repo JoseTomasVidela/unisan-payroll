@@ -15,6 +15,7 @@ const spreadsheetSearch = document.getElementById("spreadsheet-search");
 const editBtn = document.getElementById("edit-btn");
 const saveBtn = document.getElementById("save-btn");
 const cancelEditBtn = document.getElementById("cancel-edit-btn");
+const liquidationAddActivityBtn = document.getElementById("liquidation-add-activity-btn");
 const modal = document.getElementById("confirm-modal");
 const cancelSave = document.getElementById("cancel-save");
 const confirmSave = document.getElementById("confirm-save");
@@ -103,9 +104,8 @@ const adjustmentType = document.getElementById("adjustment-type");
 const adjustmentUnits = document.getElementById("adjustment-units");
 const adjustmentAmount = document.getElementById("adjustment-amount");
 const adjustmentObservations = document.getElementById("adjustment-observations");
-const adjustmentNewBtn = document.getElementById("adjustment-new-btn");
+const adjustmentAddBtn = document.getElementById("adjustment-add-btn");
 const adjustmentSaveBtn = document.getElementById("adjustment-save-btn");
-const adjustmentDeleteBtn = document.getElementById("adjustment-delete-btn");
 const adjustmentCloseBtn = document.getElementById("adjustment-close-btn");
 const adjustmentsTableBody = document.getElementById("adjustments-table-body");
 const searchEditModal = document.getElementById("search-edit-modal");
@@ -114,6 +114,13 @@ const searchEditCycleName = document.getElementById("search-edit-cycle-name");
 const searchEditSpreadsheet = document.getElementById("search-edit-spreadsheet");
 const searchEditModalCancelBtn = document.getElementById("search-edit-modal-cancel-btn");
 const searchEditModalSaveBtn = document.getElementById("search-edit-modal-save-btn");
+const addActivityBtn = document.getElementById("add-activity-btn");
+const addActivityModal = document.getElementById("add-activity-modal");
+const addActivityContext = document.getElementById("add-activity-context");
+const addActivitySearch = document.getElementById("add-activity-search");
+const addActivityTableBody = document.getElementById("add-activity-table-body");
+const addActivityCancelBtn = document.getElementById("add-activity-cancel-btn");
+const addActivityConfirmBtn = document.getElementById("add-activity-confirm-btn");
 const holidayModal = document.getElementById("holiday-modal");
 const holidayDateInput = document.getElementById("holiday-date");
 const holidayNameInput = document.getElementById("holiday-name");
@@ -141,7 +148,11 @@ let activeSheetCycleName = settlementCycleName;
 let activeSheetContext = null;
 let manualAdjustments = [];
 let selectedAdjustmentId = null;
+let originalManualAdjustments = [];
+let deletedAdjustmentIds = [];
+let nextTemporaryAdjustmentId = -1;
 let contextEmployeesCache = [];
+let searchEmployeesCache = [];
 let holidayMonthCursor = new Date();
 holidayMonthCursor = new Date(holidayMonthCursor.getFullYear(), holidayMonthCursor.getMonth(), 1);
 let holidayEntries = [];
@@ -619,8 +630,6 @@ function resetAdjustmentForm() {
     adjustmentUnits.value = "";
     adjustmentAmount.value = "";
     adjustmentObservations.value = "";
-    adjustmentSaveBtn.textContent = "Crear ajuste";
-    adjustmentDeleteBtn.classList.add("hidden");
 }
 
 function fillAdjustmentForm(adjustment) {
@@ -629,8 +638,6 @@ function fillAdjustmentForm(adjustment) {
     adjustmentUnits.value = adjustment.units === null ? "" : Math.round(Number(adjustment.units));
     adjustmentAmount.value = adjustment.amount === null ? "" : Math.round(Number(adjustment.amount));
     adjustmentObservations.value = adjustment.observations ?? "";
-    adjustmentSaveBtn.textContent = "Editar ajuste";
-    adjustmentDeleteBtn.classList.toggle("hidden", !adjustment.active);
 }
 
 function renderAdjustmentsTable() {
@@ -640,11 +647,12 @@ function renderAdjustmentsTable() {
                 <td>${escapeHtml(adjustmentTypeLabel(item.adjustment_type))}</td>
                 <td>${item.units === null ? "" : unitValue(item.units)}</td>
                 <td>${money(item.amount)}</td>
-                <td>${item.active ? "Activo" : "Eliminado"}</td>
+                <td>Activo</td>
                 <td>
                     <div class="actions left">
                         ${currentUser?.role === "ADMIN"
-                            ? `<button class="btn secondary small-btn adjustment-edit-btn" data-adjustment-id="${item.id}" ${item.active ? "" : "disabled"}>Editar</button>`
+                            ? `<button class="btn secondary small-btn adjustment-edit-btn" data-adjustment-id="${item.id}">Editar</button>
+                               <button class="btn secondary small-btn adjustment-remove-btn" data-adjustment-id="${item.id}">Eliminar</button>`
                             : ""}
                     </div>
                 </td>
@@ -659,9 +667,11 @@ async function loadManualAdjustments() {
         renderAdjustmentsTable();
         return;
     }
-    manualAdjustments = await apiRequest(
+    originalManualAdjustments = await apiRequest(
         `/manual-adjustments?cycle_id=${selectedSearchCycleIds[0]}&employee_id=${selectedSearchEmployeeIds[0]}`
     );
+    manualAdjustments = originalManualAdjustments.map(item => ({...item}));
+    deletedAdjustmentIds = [];
     renderAdjustmentsTable();
 }
 
@@ -677,7 +687,108 @@ function closeAdjustmentsModal() {
     adjustmentsModal.classList.add("hidden");
     resetAdjustmentForm();
     manualAdjustments = [];
+    originalManualAdjustments = [];
+    deletedAdjustmentIds = [];
     adjustmentsTableBody.innerHTML = "";
+}
+
+function adjustmentPayloadFromForm() {
+    const rawUnits = adjustmentUnits.value.trim();
+    const rawAmount = adjustmentAmount.value.trim();
+    if (rawAmount === "") {
+        alert("Ingrese un monto.");
+        return null;
+    }
+    return {
+        id: selectedAdjustmentId || nextTemporaryAdjustmentId--,
+        cycle_id: selectedSearchCycleIds[0],
+        employee_id: selectedSearchEmployeeIds[0],
+        adjustment_type: adjustmentType.value,
+        description: adjustmentTypeLabel(adjustmentType.value),
+        units: rawUnits === "" ? null : String(Math.round(Number(rawUnits))),
+        amount: String(Math.round(Number(rawAmount))),
+        observations: adjustmentObservations.value || null,
+        active: true
+    };
+}
+
+function upsertAdjustmentDraft() {
+    const payload = adjustmentPayloadFromForm();
+    if (!payload) return;
+    const index = manualAdjustments.findIndex(item => Number(item.id) === Number(payload.id));
+    if (index >= 0) {
+        manualAdjustments[index] = {...manualAdjustments[index], ...payload};
+    } else {
+        manualAdjustments.push(payload);
+    }
+    renderAdjustmentsTable();
+    resetAdjustmentForm();
+}
+
+function removeAdjustmentDraft(adjustmentId) {
+    const numericId = Number(adjustmentId);
+    if (numericId > 0 && !deletedAdjustmentIds.includes(numericId)) {
+        deletedAdjustmentIds.push(numericId);
+    }
+    manualAdjustments = manualAdjustments.filter(item => Number(item.id) !== numericId);
+    if (Number(selectedAdjustmentId) === numericId) resetAdjustmentForm();
+    renderAdjustmentsTable();
+}
+
+function adjustmentChanged(original, current) {
+    if (!original) return true;
+    return ["adjustment_type", "description", "units", "amount", "observations"].some(key =>
+        String(original[key] ?? "") !== String(current[key] ?? "")
+    );
+}
+
+async function saveAdjustmentDrafts() {
+    if (!isSingleSearchSelection()) return;
+    adjustmentSaveBtn.disabled = true;
+    adjustmentAddBtn.disabled = true;
+    try {
+        for (const adjustmentId of deletedAdjustmentIds) {
+            await apiRequest(`/manual-adjustments/${adjustmentId}`, {method: "DELETE"});
+        }
+        const originalsById = new Map(originalManualAdjustments.map(item => [Number(item.id), item]));
+        for (const item of manualAdjustments) {
+            const numericId = Number(item.id);
+            const payload = {
+                cycle_id: selectedSearchCycleIds[0],
+                employee_id: selectedSearchEmployeeIds[0],
+                adjustment_type: item.adjustment_type,
+                description: item.description ?? adjustmentTypeLabel(item.adjustment_type),
+                units: item.units === null || item.units === "" ? null : String(Math.round(Number(item.units))),
+                amount: String(Math.round(Number(item.amount))),
+                observations: item.observations || null
+            };
+            if (numericId < 0) {
+                await apiRequest("/manual-adjustments", {
+                    method: "POST",
+                    body: JSON.stringify(payload)
+                });
+            } else if (adjustmentChanged(originalsById.get(numericId), payload)) {
+                await apiRequest(`/manual-adjustments/${numericId}`, {
+                    method: "PUT",
+                    body: JSON.stringify({
+                        adjustment_type: payload.adjustment_type,
+                        description: payload.description,
+                        units: payload.units,
+                        amount: payload.amount,
+                        observations: payload.observations
+                    })
+                });
+            }
+        }
+        await loadManualAdjustments();
+        await loadSearchSettlement();
+        closeAdjustmentsModal();
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        adjustmentSaveBtn.disabled = false;
+        adjustmentAddBtn.disabled = false;
+    }
 }
 
 async function exportSearchSettlement(fileFormat) {
@@ -785,6 +896,7 @@ async function refreshAfterWorkerContractChange() {
 async function loadSearchEmployees() {
     if (!selectedSearchCycleIds.length) {
         selectedSearchEmployeeIds = [];
+        searchEmployeesCache = [];
         renderSearchEmployeeChecklist([]);
         updateSearchActionState();
         if (currentView === "search") {
@@ -816,10 +928,11 @@ async function loadSearchEmployees() {
     const employees = [...employeesByName.values()].sort((a, b) =>
         a.employee_name.localeCompare(b.employee_name, "es")
     );
+    searchEmployeesCache = employees;
     selectedSearchEmployeeIds = selectedSearchEmployeeIds.filter(employeeId =>
         employees.some(employee => Number(employee.id) === Number(employeeId))
     );
-    renderSearchEmployeeChecklist(employees);
+    renderSearchEmployeeChecklist();
     updateSearchActionState();
     if (currentView === "search") {
         clearSettlement();
@@ -844,6 +957,17 @@ const rateContexts = {
     "services-assistant-new": {costCenter:"SERVICES", roleType:"ASSISTANT", contractType:"NEW"}
 };
 
+const rateContextLabels = {
+    "dr-driver-old": "D&R Chofer Antiguo",
+    "dr-driver-new": "D&R Chofer Nuevo",
+    "dr-assistant-old": "D&R Auxiliar Antiguo",
+    "dr-assistant-new": "D&R Auxiliar Nuevo",
+    "services-driver-old": "Servicios Chofer Antiguo",
+    "services-driver-new": "Servicios Chofer Nuevo",
+    "services-assistant-old": "Servicios Auxiliar Antiguo",
+    "services-assistant-new": "Servicios Auxiliar Nuevo"
+};
+
 function cycleNameById(cycleId) {
     return cyclesCache.find(cycle => Number(cycle.id) === Number(cycleId))?.cycle_name || "";
 }
@@ -860,6 +984,11 @@ function selectedRateApplyMode() {
 
 function updateContextActionState() {
     const hasSelection = Boolean(currentContext && liquidationCycle.value && liquidationEmployee.value);
+    const hasSingleSelection = hasSelection && liquidationEmployee.value !== "__ALL__";
+    editBtn?.classList.toggle("hidden", currentUser?.role !== "ADMIN" || !hasSingleSelection || editMode);
+    liquidationAddActivityBtn?.classList.toggle("hidden", !editMode || activeSheetMode !== "context" || !hasSingleSelection);
+    saveBtn?.classList.toggle("hidden", !editMode || activeSheetMode !== "context");
+    cancelEditBtn?.classList.toggle("hidden", !editMode || activeSheetMode !== "context");
     liquidationExportExcelBtn.disabled = !hasSelection;
     liquidationExportPdfBtn.disabled = !hasSelection;
     liquidationEmailBtn.disabled = !hasSelection;
@@ -879,6 +1008,10 @@ let editModalCycleId = null;
 let editModalEmployeeId = null;
 let editModalDates = [];
 let editModalRows = [];
+let editModalContractType = null;
+let addActivityRows = [];
+let selectedAddActivityConceptId = null;
+let addActivityTarget = "modal";
 
 function checkedValues(container, key) {
     const attr = key.replace(/[A-Z]/g, char => `-${char.toLowerCase()}`);
@@ -945,14 +1078,25 @@ function renderSearchCycleChecklist() {
         : "Seleccione uno o más ciclos";
 }
 
-function renderSearchEmployeeChecklist(employees) {
-    searchEmployee.innerHTML = employees.length
+function filteredSearchEmployees() {
+    const term = searchEmployeeSummary.value.trim().toLocaleLowerCase("es");
+    if (!term) return searchEmployeesCache;
+    return searchEmployeesCache.filter(employee =>
+        employee.employee_name.toLocaleLowerCase("es").includes(term)
+    );
+}
+
+function renderSearchEmployeeChecklist(employees = filteredSearchEmployees()) {
+    const allVisibleSelected = employees.length > 0 && employees.every(employee =>
+        selectedSearchEmployeeIds.includes(Number(employee.id))
+    );
+    searchEmployee.innerHTML = searchEmployeesCache.length
         ? [
             `<label class="checklist-item checklist-item-all">
                 <input
                     type="checkbox"
                     data-select-all-employees="true"
-                    ${employees.length && selectedSearchEmployeeIds.length === employees.length ? "checked" : ""} />
+                    ${allVisibleSelected ? "checked" : ""} />
                 <span>Todos</span>
             </label>`,
             ...employees.map(employee => `
@@ -967,11 +1111,15 @@ function renderSearchEmployeeChecklist(employees) {
             `)
         ].join("")
         : '<div class="checklist-empty">Seleccione primero uno o más ciclos.</div>';
-    searchEmployeeSummary.textContent = selectedSearchEmployeeIds.length
-        ? selectedSearchEmployeeIds.length === employees.length
+    if (searchEmployeesCache.length && !employees.length) {
+        searchEmployee.innerHTML = '<div class="checklist-empty">No hay trabajadores para ese filtro.</div>';
+    }
+    const selectedCount = selectedSearchEmployeeIds.length;
+    searchEmployeeSummary.placeholder = selectedCount
+        ? selectedCount === searchEmployeesCache.length
             ? "Todos los trabajadores"
-            : `${selectedSearchEmployeeIds.length} trabajador(es) seleccionado(s)`
-        : "Seleccione uno o más trabajadores";
+            : `${selectedCount} trabajador(es) seleccionado(s)`
+        : "Buscar trabajador";
 }
 
 function setActiveSheet({ mode, container, employeeNameEl, cycleNameEl, context }) {
@@ -1027,10 +1175,12 @@ function settlementToSheetData(settlement, contextOverride = null) {
 
 function closeSearchEditModal() {
     searchEditModal.classList.add("hidden");
+    closeAddActivityModal();
     editModalCycleId = null;
     editModalEmployeeId = null;
     editModalDates = [];
     editModalRows = [];
+    editModalContractType = null;
     searchEditSpreadsheet.innerHTML = "";
 }
 
@@ -1064,10 +1214,172 @@ async function openSearchEditModal(cycleId, employeeId) {
     editModalEmployeeId = Number(employeeId);
     editModalDates = sheetData.dates;
     editModalRows = sheetData.rows;
+    editModalContractType = settlement.employee.contract_type || null;
     searchEditEmployeeName.textContent = settlement.employee.employee_name;
     searchEditCycleName.textContent = settlement.cycle.cycle_name;
     renderSearchEditModalSpreadsheet();
     searchEditModal.classList.remove("hidden");
+}
+
+function closeAddActivityModal() {
+    addActivityModal?.classList.add("hidden");
+    addActivityRows = [];
+    selectedAddActivityConceptId = null;
+    addActivityTarget = "modal";
+    if (addActivitySearch) addActivitySearch.value = "";
+    if (addActivityTableBody) addActivityTableBody.innerHTML = "";
+    if (addActivityConfirmBtn) addActivityConfirmBtn.disabled = true;
+}
+
+function addActivityState() {
+    if (addActivityTarget === "context") {
+        return {
+            cycleId: Number(liquidationCycle.value),
+            employeeId: Number(liquidationEmployee.value),
+            dates,
+            rows,
+            contractType: contextEmployeesCache.find(
+                employee => Number(employee.id) === Number(liquidationEmployee.value)
+            )?.contract_type || null
+        };
+    }
+    return {
+        cycleId: editModalCycleId,
+        employeeId: editModalEmployeeId,
+        dates: editModalDates,
+        rows: editModalRows,
+        contractType: editModalContractType
+    };
+}
+
+function addActivityDefaultContextKey() {
+    const state = addActivityState();
+    if (addActivityTarget === "context" && currentContext) {
+        const contextKey = Object.keys(rateContexts).find(key => {
+            const ctx = rateContexts[key];
+            return ctx.costCenter === currentContext.costCenter
+                && ctx.roleType === currentContext.roleType
+                && (!state.contractType || ctx.contractType === state.contractType);
+        });
+        if (contextKey) return contextKey;
+    }
+    const existingConceptRows = state.rows.filter(row => row.rowType === "concept");
+    const visibleContext = Object.entries(rateContexts).find(([, ctx]) =>
+        existingConceptRows.some(row =>
+            row.label?.includes(ctx.costCenter === "DR" ? "D&R" : "Servicios")
+        ) && (!state.contractType || ctx.contractType === state.contractType)
+    );
+    if (visibleContext) return visibleContext[0];
+    return Object.keys(rateContexts).find(key =>
+        !state.contractType || rateContexts[key].contractType === state.contractType
+    ) || Object.keys(rateContexts)[0];
+}
+
+function populateAddActivityContexts() {
+    const state = addActivityState();
+    const contextEntries = Object.entries(rateContexts).filter(([, ctx]) =>
+        !state.contractType || ctx.contractType === state.contractType
+    );
+    addActivityContext.innerHTML = contextEntries
+        .map(([key]) => `<option value="${key}">${escapeHtml(rateContextLabels[key] || key)}</option>`)
+        .join("");
+    addActivityContext.value = addActivityDefaultContextKey();
+}
+
+function renderAddActivityRows() {
+    const state = addActivityState();
+    const term = addActivitySearch.value.trim().toLowerCase();
+    const existingConceptIds = new Set(
+        state.rows
+            .map(row => Number(row.conceptId))
+            .filter(Boolean)
+    );
+    const filteredRows = addActivityRows.filter(row =>
+        !existingConceptIds.has(Number(row.concept_id))
+        && (!state.contractType || row.contract_type === state.contractType)
+        && (!term || row.concept_name.toLowerCase().includes(term) || row.concept_code.toLowerCase().includes(term))
+    );
+    if (!filteredRows.some(row => Number(row.concept_id) === Number(selectedAddActivityConceptId))) {
+        selectedAddActivityConceptId = null;
+    }
+    addActivityTableBody.innerHTML = filteredRows.length
+        ? filteredRows.map(row => {
+            const selected = Number(row.concept_id) === Number(selectedAddActivityConceptId);
+            return `
+                <tr class="add-activity-row ${selected ? "selected" : ""}" data-concept-id="${row.concept_id}">
+                    <td>${escapeHtml(row.concept_name)}</td>
+                    <td>${escapeHtml(row.cost_center === "DR" ? "D&R" : "SERVICES")}</td>
+                    <td>${escapeHtml(row.role_type === "DRIVER" ? "Chofer" : "Auxiliar")}</td>
+                    <td>${escapeHtml(contractLabel(row.contract_type))}</td>
+                    <td>${row.amount === null ? '<span class="rate-readonly">Sin tarifa</span>' : money(row.amount)}</td>
+                </tr>
+            `;
+        }).join("")
+        : `<tr><td colspan="5" class="muted">No hay actividades para este filtro.</td></tr>`;
+    addActivityConfirmBtn.disabled = !selectedAddActivityConceptId;
+}
+
+async function loadAddActivityRows() {
+    const ctx = rateContexts[addActivityContext.value];
+    const state = addActivityState();
+    if (!ctx || !state.cycleId) {
+        addActivityRows = [];
+        renderAddActivityRows();
+        return;
+    }
+    selectedAddActivityConceptId = null;
+    addActivityConfirmBtn.disabled = true;
+    const query = new URLSearchParams({
+        cost_center: ctx.costCenter,
+        role_type: ctx.roleType,
+        cycle_id: state.cycleId,
+        contract_type: ctx.contractType
+    });
+    addActivityRows = await apiRequest(`/rates?${query}`);
+    renderAddActivityRows();
+}
+
+async function openAddActivityModal(target = "modal") {
+    addActivityTarget = target;
+    const state = addActivityState();
+    if (!state.cycleId || !state.employeeId) return;
+    populateAddActivityContexts();
+    addActivityModal.classList.remove("hidden");
+    await loadAddActivityRows();
+}
+
+function addSelectedActivityToEditModal() {
+    const row = addActivityRows.find(item => Number(item.concept_id) === Number(selectedAddActivityConceptId));
+    if (!row) return;
+    const state = addActivityState();
+    if (state.rows.some(item => Number(item.conceptId) === Number(row.concept_id))) {
+        closeAddActivityModal();
+        return;
+    }
+    const insertIndex = state.rows.findIndex(item => item.rowType === "total_to_pay");
+    const dailyZeros = state.dates.map(() => 0);
+    const newRow = {
+        rowType: "concept",
+        conceptId: row.concept_id,
+        label: row.concept_name,
+        units: 0,
+        rate: row.amount ?? 0,
+        values: [...dailyZeros],
+        originalValues: [...dailyZeros],
+        totalRow: false,
+        summary: false
+    };
+    if (insertIndex === -1) {
+        state.rows.push(newRow);
+    } else {
+        state.rows.splice(insertIndex, 0, newRow);
+    }
+    if (addActivityTarget === "context") {
+        renderSpreadsheet(activeSheetContainer);
+    } else {
+        renderSearchEditModalSpreadsheet();
+    }
+    closeAddActivityModal();
 }
 
 function renderSpreadsheetMarkup(sheetData, allowEdit = false) {
@@ -1196,6 +1508,7 @@ async function refreshSettlementIfNeeded(costCenter, roleType, cycleId) {
 }
 
 async function loadSettlement() {
+    editMode = false;
     if (!currentContext || !liquidationCycle.value || !liquidationEmployee.value) {
         setActiveSheet({
             mode: "context",
@@ -1455,6 +1768,9 @@ function renderSpreadsheet(container) {
 function setView(viewId) {
     currentView = viewId;
     editMode = false;
+    liquidationAddActivityBtn?.classList.add("hidden");
+    saveBtn?.classList.add("hidden");
+    cancelEditBtn?.classList.add("hidden");
     if (!adjustmentsModal.classList.contains("hidden")) {
         closeAdjustmentsModal();
     }
@@ -1589,6 +1905,38 @@ searchEditBtn?.addEventListener("click", () => {
     renderSpreadsheet(activeSheetContainer);
 });
 
+editBtn?.addEventListener("click", () => {
+    if (
+        currentUser?.role !== "ADMIN"
+        || activeSheetMode !== "context"
+        || !currentContext
+        || !liquidationCycle.value
+        || !liquidationEmployee.value
+        || liquidationEmployee.value === "__ALL__"
+    ) return;
+    editMode = true;
+    updateContextActionState();
+    renderSpreadsheet(activeSheetContainer);
+});
+
+liquidationAddActivityBtn?.addEventListener("click", () => {
+    if (!editMode || activeSheetMode !== "context") return;
+    openAddActivityModal("context").catch(error => alert(error.message));
+});
+
+saveBtn?.addEventListener("click", () => {
+    if (!editMode || activeSheetMode !== "context") return;
+    modal.classList.remove("hidden");
+});
+
+cancelEditBtn?.addEventListener("click", async () => {
+    if (activeSheetMode !== "context") return;
+    editMode = false;
+    modal.classList.add("hidden");
+    updateContextActionState();
+    await loadSettlement();
+});
+
 searchAdjustmentsBtn?.addEventListener("click", () => {
     if (currentUser?.role !== "ADMIN") return;
     if (!isSingleSearchSelection()) {
@@ -1613,6 +1961,21 @@ searchSingleAdjustmentsBtn?.addEventListener("click", () => {
 });
 
 searchEditModalCancelBtn?.addEventListener("click", closeSearchEditModal);
+addActivityBtn?.addEventListener("click", () => {
+    openAddActivityModal().catch(error => alert(error.message));
+});
+addActivityCancelBtn?.addEventListener("click", closeAddActivityModal);
+addActivityContext?.addEventListener("change", () => {
+    loadAddActivityRows().catch(error => alert(error.message));
+});
+addActivitySearch?.addEventListener("input", renderAddActivityRows);
+addActivityTableBody?.addEventListener("click", event => {
+    const target = event.target.closest(".add-activity-row");
+    if (!target) return;
+    selectedAddActivityConceptId = Number(target.dataset.conceptId);
+    renderAddActivityRows();
+});
+addActivityConfirmBtn?.addEventListener("click", addSelectedActivityToEditModal);
 
 searchEditModalSaveBtn?.addEventListener("click", async () => {
     if (!editModalCycleId || !editModalEmployeeId) return;
@@ -1696,7 +2059,7 @@ searchCancelEditBtn.addEventListener("click", async () => {
 });
 
 confirmSave.addEventListener("click", async () => {
-    const updates = [...document.querySelectorAll(".cell-input")]
+    const updates = [...activeSheetContainer.querySelectorAll(".cell-input")]
         .map(input => {
             const rowIndex = Number(input.dataset.row);
             const columnIndex = Number(input.dataset.col);
@@ -1715,24 +2078,37 @@ confirmSave.addEventListener("click", async () => {
         searchSaveBtn.classList.add("hidden");
         searchCancelEditBtn.classList.add("hidden");
         searchEditBtn?.classList.add("hidden");
+        updateContextActionState();
         modal.classList.add("hidden");
         renderSpreadsheet(activeSheetContainer);
         return;
     }
     confirmSave.disabled = true;
     try {
-        const settlement = await apiRequest("/liquidations/cells", {
-            method: "POST",
-            body: JSON.stringify({
+        const isContextSave = activeSheetMode === "context";
+        const endpoint = isContextSave ? "/settlements/cells" : "/liquidations/cells";
+        const payload = isContextSave
+            ? {
+                cycle_id: Number(liquidationCycle.value),
+                employee_id: Number(liquidationEmployee.value),
+                cost_center: currentContext.costCenter,
+                role_type: currentContext.roleType,
+                updates
+            }
+            : {
                 cycle_id: selectedSearchCycleIds[0],
                 employee_id: selectedSearchEmployeeIds[0],
                 updates
-            })
+            };
+        const settlement = await apiRequest(endpoint, {
+            method: "POST",
+            body: JSON.stringify(payload)
         });
         editMode = false;
         searchSaveBtn.classList.add("hidden");
         searchCancelEditBtn.classList.add("hidden");
         searchEditBtn?.classList.add("hidden");
+        updateContextActionState();
         modal.classList.add("hidden");
         applySettlement(settlement);
         if (!adjustmentsModal.classList.contains("hidden")) {
@@ -1746,84 +2122,23 @@ confirmSave.addEventListener("click", async () => {
 });
 
 adjustmentCloseBtn?.addEventListener("click", closeAdjustmentsModal);
-adjustmentNewBtn?.addEventListener("click", () => {
-    resetAdjustmentForm();
-});
-
 adjustmentsTableBody?.addEventListener("click", event => {
     const editButton = event.target.closest(".adjustment-edit-btn");
     if (editButton) {
         const adjustment = manualAdjustments.find(
-            item => item.id === Number(editButton.dataset.adjustmentId)
+            item => Number(item.id) === Number(editButton.dataset.adjustmentId)
         );
         if (adjustment) fillAdjustmentForm(adjustment);
-    }
-});
-
-adjustmentSaveBtn?.addEventListener("click", async () => {
-    if (!isSingleSearchSelection()) return;
-    const rawUnits = adjustmentUnits.value.trim();
-    const rawAmount = adjustmentAmount.value.trim();
-    const payload = {
-        cycle_id: selectedSearchCycleIds[0],
-        employee_id: selectedSearchEmployeeIds[0],
-        adjustment_type: adjustmentType.value,
-        description: null,
-        units: rawUnits === "" ? null : String(Math.round(Number(rawUnits))),
-        amount: rawAmount === "" ? "" : String(Math.round(Number(rawAmount))),
-        observations: adjustmentObservations.value || null
-    };
-    if (payload.amount === "") {
-        alert("Ingrese un monto.");
         return;
     }
-    adjustmentSaveBtn.disabled = true;
-    try {
-        if (selectedAdjustmentId) {
-            await apiRequest(`/manual-adjustments/${selectedAdjustmentId}`, {
-                method: "PUT",
-                body: JSON.stringify({
-                    adjustment_type: payload.adjustment_type,
-                    description: payload.description,
-                    units: payload.units,
-                    amount: payload.amount,
-                    observations: payload.observations
-                })
-            });
-        } else {
-            await apiRequest("/manual-adjustments", {
-                method: "POST",
-                body: JSON.stringify(payload)
-            });
-        }
-        await loadManualAdjustments();
-        await loadSearchSettlement();
-        resetAdjustmentForm();
-    } catch (error) {
-        alert(error.message);
-    } finally {
-        adjustmentSaveBtn.disabled = false;
+    const removeButton = event.target.closest(".adjustment-remove-btn");
+    if (removeButton) {
+        removeAdjustmentDraft(removeButton.dataset.adjustmentId);
     }
 });
 
-adjustmentDeleteBtn?.addEventListener("click", async () => {
-    if (!selectedAdjustmentId) return;
-    const confirmed = confirm("Se eliminara el ajuste de forma logica. Desea continuar?");
-    if (!confirmed) return;
-    adjustmentDeleteBtn.disabled = true;
-    try {
-        await apiRequest(`/manual-adjustments/${selectedAdjustmentId}`, {
-            method: "DELETE"
-        });
-        await loadManualAdjustments();
-        await loadSearchSettlement();
-        resetAdjustmentForm();
-    } catch (error) {
-        alert(error.message);
-    } finally {
-        adjustmentDeleteBtn.disabled = false;
-    }
-});
+adjustmentAddBtn?.addEventListener("click", upsertAdjustmentDraft);
+adjustmentSaveBtn?.addEventListener("click", saveAdjustmentDrafts);
 
 newUserBtn.addEventListener("click", () => userForm.classList.remove("hidden"));
 cancelUserBtn.addEventListener("click", () => {
@@ -1989,7 +2304,23 @@ searchCycleSummary.addEventListener("click", event => {
 
 searchEmployeeSummary.addEventListener("click", event => {
     event.stopPropagation();
-    toggleSearchDropdown(searchEmployee, searchEmployeeSummary);
+    searchEmployee.classList.remove("hidden");
+    renderSearchEmployeeChecklist();
+    positionSearchDropdown(searchEmployee, searchEmployeeSummary);
+});
+
+searchEmployeeSummary.addEventListener("focus", event => {
+    event.stopPropagation();
+    searchEmployee.classList.remove("hidden");
+    renderSearchEmployeeChecklist();
+    positionSearchDropdown(searchEmployee, searchEmployeeSummary);
+});
+
+searchEmployeeSummary.addEventListener("input", event => {
+    event.stopPropagation();
+    searchEmployee.classList.remove("hidden");
+    renderSearchEmployeeChecklist();
+    positionSearchDropdown(searchEmployee, searchEmployeeSummary);
 });
 
 searchCycle.addEventListener("input", event => {
@@ -2002,12 +2333,14 @@ searchCycle.addEventListener("input", event => {
 
 searchEmployee.addEventListener("input", event => {
     if (event.target.matches("input[data-select-all-employees]")) {
-        const employees = [...searchEmployee.querySelectorAll("input[data-employee-id]")].map(input => ({
-            id: Number(input.dataset.employeeId),
-            employee_name: input.dataset.employeeName || ""
-        }));
-        selectedSearchEmployeeIds = event.target.checked ? employees.map(employee => employee.id) : [];
-        renderSearchEmployeeChecklist(employees);
+        const visibleEmployees = filteredSearchEmployees();
+        const visibleIds = visibleEmployees.map(employee => Number(employee.id));
+        if (event.target.checked) {
+            selectedSearchEmployeeIds = [...new Set([...selectedSearchEmployeeIds, ...visibleIds])];
+        } else {
+            selectedSearchEmployeeIds = selectedSearchEmployeeIds.filter(employeeId => !visibleIds.includes(Number(employeeId)));
+        }
+        renderSearchEmployeeChecklist();
         updateSearchActionState();
         if (currentView === "search") {
             searchResultTitle.textContent = "Liquidacion";
@@ -2017,13 +2350,13 @@ searchEmployee.addEventListener("input", event => {
     }
     if (!event.target.matches("input[data-employee-id]")) return;
     if (!adjustmentsModal.classList.contains("hidden")) closeAdjustmentsModal();
-    selectedSearchEmployeeIds = checkedValues(searchEmployee, "employeeId");
-    renderSearchEmployeeChecklist(
-        [...searchEmployee.querySelectorAll("input[data-employee-id]")].map(input => ({
-            id: Number(input.dataset.employeeId),
-            employee_name: input.dataset.employeeName || ""
-        }))
-    );
+    const employeeId = Number(event.target.dataset.employeeId);
+    if (event.target.checked) {
+        if (!selectedSearchEmployeeIds.includes(employeeId)) selectedSearchEmployeeIds.push(employeeId);
+    } else {
+        selectedSearchEmployeeIds = selectedSearchEmployeeIds.filter(item => Number(item) !== employeeId);
+    }
+    renderSearchEmployeeChecklist();
     updateSearchActionState();
     if (currentView === "search") {
         searchResultTitle.textContent = "Liquidacion";
