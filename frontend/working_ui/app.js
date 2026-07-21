@@ -165,7 +165,7 @@ let editingHolidayId = null;
 const configuredApiBaseUrl = window.__PAYROLL_CONFIG__?.apiBaseUrl?.trim();
 const defaultApiBaseUrl = ["127.0.0.1", "localhost"].includes(window.location.hostname)
     ? "http://127.0.0.1:8010/api"
-    : `${window.location.origin}/payroll/api`;
+    : `${window.location.origin}/api`;
 const apiBaseUrl = (configuredApiBaseUrl || defaultApiBaseUrl).replace(/\/$/, "");
 const rememberedUsernameKey = "payroll_remembered_username";
 
