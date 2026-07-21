@@ -13,10 +13,19 @@ from .config import Settings
 PBKDF2_ITERATIONS = 600_000
 
 
-def hash_password(password: str) -> str:
-    if len(password) < 10:
-        raise ValueError("La contraseña debe tener al menos 10 caracteres.")
+def validate_password(password: str) -> str:
+    if len(password) < 6:
+        raise ValueError("La contraseña debe tener al menos 6 caracteres.")
+    if not any(character.isupper() for character in password):
+        raise ValueError("La contraseña debe incluir una mayúscula.")
+    if not any(character.islower() for character in password):
+        raise ValueError("La contraseña debe incluir una minúscula.")
+    if not any(not character.isalnum() for character in password):
+        raise ValueError("La contraseña debe incluir un carácter especial.")
+    return password
 
+
+def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac(
         "sha256",

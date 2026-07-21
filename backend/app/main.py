@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import smtplib
 from contextlib import asynccontextmanager
 from datetime import datetime
 from decimal import Decimal
@@ -30,6 +31,7 @@ from .employee_names import (
     normalize_employee_name,
     parse_personnel_name,
 )
+from .emailer import send_settlement_email, send_test_email
 from .exporter import export_csv_bytes, export_file_name, export_pdf_bytes, export_xlsx_bytes
 from .holidays import ALLOWED_HOLIDAY_SCOPES, HolidayService
 from .importer import ensure_workbook_cycles, find_possible_reimports, parse_workbook, persist_import
@@ -70,6 +72,7 @@ from .schemas import (
     SearchEmployeeOptionResponse,
     SearchResponse,
     SettlementCellUpdateRequest,
+    SettlementEmailRequest,
     SettlementResponse,
     SettlementRateUpdateRequest,
     WorkerCreateRequest,
@@ -558,6 +561,70 @@ def me(user: User = Depends(get_current_user)) -> UserResponse:
     return serialize_user(user)
 
 
+@app.post("/api/email/test")
+def email_test(
+    settings: Settings = Depends(get_settings),
+    _: User = Depends(require_permission("payroll.email")),
+) -> dict[str, str]:
+    try:
+        recipient = send_test_email(settings)
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except (OSError, smtplib.SMTPException) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="El servidor de correo rechazó o no pudo completar el envío SMTP.",
+        ) from exc
+    return {"status": "sent", "recipient": recipient}
+
+
+@app.post("/api/email/settlement")
+def email_settlement(
+    payload: SettlementEmailRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _: User = Depends(require_permission("payroll.email")),
+) -> dict[str, str]:
+    normalized_cost_center = normalize_cost_center(payload.cost_center)
+    normalized_role_type = normalize_role_type(payload.role_type)
+    settlement = build_settlement_payload(
+        db,
+        cycle_id=payload.cycle_id,
+        employee_id=payload.employee_id,
+        cost_center=normalized_cost_center,
+        role_type=normalized_role_type,
+    )
+    recipient = str(settings.smtp_test_recipient or "").strip()
+    recipient_name = "Destinatario de prueba"
+    if not recipient:
+        raise HTTPException(
+            status_code=503,
+            detail="No hay un destinatario de prueba configurado.",
+        )
+    file_name = export_file_name(
+        settlement=settlement,
+        file_format="pdf",
+        cost_center=normalized_cost_center,
+        role_type=normalized_role_type,
+    )
+    try:
+        send_settlement_email(
+            settings,
+            recipient=recipient,
+            recipient_name=recipient_name,
+            pdf_content=export_pdf_bytes(settlement),
+            pdf_file_name=file_name,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (OSError, smtplib.SMTPException) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="El servidor de correo rechazó o no pudo completar el envío SMTP.",
+        ) from exc
+    return {"status": "sent", "recipient": recipient, "recipient_name": recipient_name}
+
+
 @app.get("/api/users", response_model=list[UserResponse])
 def list_users(
     db: Session = Depends(get_db),
@@ -572,7 +639,9 @@ def list_roles(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission("users.manage")),
 ) -> list[RoleResponse]:
-    roles = db.scalars(select(Role).order_by(Role.role_name)).all()
+    roles = db.scalars(
+        select(Role).where(Role.active.is_(True)).order_by(Role.role_name)
+    ).all()
     return [
         RoleResponse(
             role_name=role.role_name,
@@ -827,7 +896,7 @@ def list_settlement_employees(
 @app.get("/api/workers", response_model=list[WorkerListItemResponse])
 def list_workers(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("payroll.read")),
+    _: User = Depends(require_permission("workers.read")),
 ) -> list[WorkerListItemResponse]:
     employees = list(db.scalars(select(Employee).order_by(Employee.id)).all())
     grouped: dict[str, list[Employee]] = {}
@@ -854,10 +923,8 @@ def list_workers(
 def create_worker(
     payload: WorkerCreateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("payroll.edit")),
+    current_user: User = Depends(require_permission("workers.edit")),
 ) -> WorkerListItemResponse:
-    if current_user.role.role_name != "ADMIN":
-        raise HTTPException(status_code=403, detail="Solo ADMIN puede editar trabajadores.")
     employee_name = " ".join(payload.employee_name.strip().split())
     if not employee_name:
         raise HTTPException(status_code=400, detail="Nombre de trabajador requerido.")
@@ -911,10 +978,8 @@ def update_worker(
     worker_id: int,
     payload: WorkerUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("payroll.edit")),
+    current_user: User = Depends(require_permission("workers.edit")),
 ) -> WorkerListItemResponse:
-    if current_user.role.role_name != "ADMIN":
-        raise HTTPException(status_code=403, detail="Solo ADMIN puede editar trabajadores.")
     worker = db.get(Employee, worker_id)
     if worker is None:
         raise HTTPException(status_code=404, detail="Trabajador no encontrado.")
@@ -945,10 +1010,8 @@ def update_worker(
 def delete_worker(
     worker_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("payroll.edit")),
+    current_user: User = Depends(require_permission("workers.edit")),
 ) -> Response:
-    if current_user.role.role_name != "ADMIN":
-        raise HTTPException(status_code=403, detail="Solo ADMIN puede eliminar trabajadores.")
     worker = db.get(Employee, worker_id)
     if worker is None:
         raise HTTPException(status_code=404, detail="Trabajador no encontrado.")
@@ -1016,8 +1079,6 @@ def create_manual_adjustment(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("payroll.edit")),
 ) -> ManualAdjustmentResponse:
-    if current_user.role.role_name != "ADMIN":
-        raise HTTPException(status_code=403, detail="Solo ADMIN puede crear ajustes.")
     employee = db.get(Employee, payload.employee_id)
     if employee is None:
         raise HTTPException(status_code=404, detail="Trabajador no encontrado.")
@@ -1075,8 +1136,6 @@ def update_manual_adjustment(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("payroll.edit")),
 ) -> ManualAdjustmentResponse:
-    if current_user.role.role_name != "ADMIN":
-        raise HTTPException(status_code=403, detail="Solo ADMIN puede editar ajustes.")
     adjustment = db.get(PayrollManualAdjustment, adjustment_id)
     if adjustment is None:
         raise HTTPException(status_code=404, detail="Ajuste no encontrado.")
@@ -1129,8 +1188,6 @@ def delete_manual_adjustment(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("payroll.edit")),
 ) -> ManualAdjustmentResponse:
-    if current_user.role.role_name != "ADMIN":
-        raise HTTPException(status_code=403, detail="Solo ADMIN puede eliminar ajustes.")
     adjustment = db.get(PayrollManualAdjustment, adjustment_id)
     if adjustment is None:
         raise HTTPException(status_code=404, detail="Ajuste no encontrado.")
@@ -1294,13 +1351,8 @@ def export_settlement(
 def update_settlement_rates(
     payload: SettlementRateUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("payroll.edit")),
+    current_user: User = Depends(require_permission("rates.edit")),
 ) -> SettlementResponse:
-    if current_user.role.role_name != "ADMIN":
-        raise HTTPException(
-            status_code=403,
-            detail="Solo ADMIN puede editar tarifas.",
-        )
     normalized_cost_center = payload.cost_center.upper()
     normalized_role_type = payload.role_type.upper()
     if normalized_cost_center not in {"DR", "SERVICES"}:
@@ -1355,11 +1407,6 @@ def update_liquidation_cells(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("payroll.edit")),
 ) -> SettlementResponse:
-    if current_user.role.role_name != "ADMIN":
-        raise HTTPException(
-            status_code=403,
-            detail="Solo ADMIN puede editar unidades.",
-        )
     try:
         result = settlement_engine.update_daily_cells(
             db,
@@ -1389,11 +1436,6 @@ def update_settlement_cells(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_permission("payroll.edit")),
 ) -> SettlementResponse:
-    if current_user.role.role_name != "ADMIN":
-        raise HTTPException(
-            status_code=403,
-            detail="Solo ADMIN puede editar unidades.",
-        )
     normalized_cost_center = payload.cost_center.upper() if payload.cost_center else None
     normalized_role_type = payload.role_type.upper() if payload.role_type else None
     if normalized_cost_center in {"ALL", "CONSOLIDATED"}:
@@ -1434,7 +1476,7 @@ def list_rates(
     cycle_id: int,
     contract_type: str | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("payroll.read")),
+    _: User = Depends(require_permission("rates.read")),
 ) -> list[RateListItemResponse]:
     normalized_cost_center = cost_center.upper()
     normalized_role_type = role_type.upper()
@@ -1459,10 +1501,8 @@ def list_rates(
 def create_rate(
     payload: RateCreateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("payroll.edit")),
+    current_user: User = Depends(require_permission("rates.edit")),
 ) -> RateListItemResponse:
-    if current_user.role.role_name != "ADMIN":
-        raise HTTPException(status_code=403, detail="Solo ADMIN puede editar tarifas.")
     try:
         rate = concept_rate_service.save_rate(
             db,
@@ -1500,10 +1540,8 @@ def update_rate(
     rate_id: int,
     payload: RateUpdateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_permission("payroll.edit")),
+    current_user: User = Depends(require_permission("rates.edit")),
 ) -> RateListItemResponse:
-    if current_user.role.role_name != "ADMIN":
-        raise HTTPException(status_code=403, detail="Solo ADMIN puede editar tarifas.")
     try:
         rate = concept_rate_service.update_rate(
             db,

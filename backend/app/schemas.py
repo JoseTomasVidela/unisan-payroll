@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from .security import validate_password
 
 
 class LoginRequest(BaseModel):
@@ -32,13 +34,25 @@ class LoginResponse(BaseModel):
 class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=80)
     full_name: str = Field(min_length=1, max_length=160)
-    password: str = Field(min_length=10, max_length=256)
+    password: str = Field(min_length=6, max_length=256)
     role_name: str
     active: bool = True
+
+    @field_validator("password")
+    @classmethod
+    def password_policy(cls, value: str) -> str:
+        return validate_password(value)
 
 
 class UserActiveUpdate(BaseModel):
     active: bool
+
+
+class SettlementEmailRequest(BaseModel):
+    cycle_id: int
+    employee_id: int
+    cost_center: str | None = None
+    role_type: str | None = None
 
 
 class PermissionResponse(BaseModel):

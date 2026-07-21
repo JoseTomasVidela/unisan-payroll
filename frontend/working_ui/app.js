@@ -23,6 +23,8 @@ const newUserBtn = document.getElementById("new-user-btn");
 const cancelUserBtn = document.getElementById("cancel-user-btn");
 const userForm = document.getElementById("user-form");
 const usersNav = document.getElementById("users-nav");
+const ratesNav = document.getElementById("rates-nav");
+const workersNav = document.getElementById("workers-nav");
 const usersTableBody = document.getElementById("users-table-body");
 const saveUserBtn = document.getElementById("save-user-btn");
 const userFullName = document.getElementById("user-full-name");
@@ -43,6 +45,9 @@ const servicesImportBtn = document.getElementById("services-import-btn");
 const servicesImportSelected = document.getElementById("services-import-selected");
 const servicesImportCard = servicesImportFile.closest(".upload-card");
 const importsTableBody = document.getElementById("imports-table-body");
+const drImportPanel = document.getElementById("dr-import-panel");
+const servicesImportPanel = document.getElementById("services-import-panel");
+const importsHistoryPanel = document.getElementById("imports-history-panel");
 const holidayCalendar = document.getElementById("holiday-calendar");
 const holidayMonthLabel = document.getElementById("holiday-month-label");
 const holidayPrevMonthBtn = document.getElementById("holiday-prev-month-btn");
@@ -435,20 +440,22 @@ async function refreshDisplayedSettlementsForHolidayChange() {
 }
 
 async function loadDashboard() {
-    if (!hasPermission("payroll.import")) {
-        drImportBtn.classList.add("hidden");
-        servicesImportBtn.classList.add("hidden");
+    const canImport = hasPermission("payroll.import");
+    drImportPanel?.classList.toggle("hidden", !canImport);
+    servicesImportPanel?.classList.toggle("hidden", !canImport);
+    importsHistoryPanel?.classList.toggle("hidden", !canImport);
+    if (canImport) {
+        const imports = await apiRequest("/imports");
+        importsTableBody.innerHTML = imports.map(item => `
+            <tr>
+                <td>${new Date(item.imported_at).toLocaleDateString("es-CL")}</td>
+                <td>${escapeHtml(item.file_name)}</td>
+                <td><span class="tag ${item.source_type === "DR" ? "green-tag" : "blue-tag"}">${item.source_type}</span></td>
+                <td>${item.rows_imported}</td>
+                <td>${escapeHtml(item.imported_by)}</td>
+            </tr>
+        `).join("");
     }
-    const imports = await apiRequest("/imports");
-    importsTableBody.innerHTML = imports.map(item => `
-        <tr>
-            <td>${new Date(item.imported_at).toLocaleDateString("es-CL")}</td>
-            <td>${escapeHtml(item.file_name)}</td>
-            <td><span class="tag ${item.source_type === "DR" ? "green-tag" : "blue-tag"}">${item.source_type}</span></td>
-            <td>${item.rows_imported}</td>
-            <td>${escapeHtml(item.imported_by)}</td>
-        </tr>
-    `).join("");
     await loadHolidayCalendar();
 }
 
@@ -551,8 +558,14 @@ function applyPermissions(user) {
     document.querySelector(".profile-text strong").textContent = user.full_name;
     document.querySelector(".profile-text span").textContent = user.role;
     usersNav.classList.toggle("hidden", !hasPermission("users.manage"));
+    ratesNav?.classList.toggle("hidden", !hasPermission("rates.read"));
+    workersNav?.classList.toggle("hidden", !hasPermission("workers.read"));
+    searchEmailBtn?.classList.toggle("hidden", !hasPermission("payroll.email"));
+    liquidationEmailBtn?.classList.toggle("hidden", !hasPermission("payroll.email"));
+    searchSoftlandBtn?.classList.toggle("hidden", !hasPermission("payroll.softland"));
+    liquidationSoftlandBtn?.classList.toggle("hidden", !hasPermission("payroll.softland"));
     if (newWorkerBtn) {
-        newWorkerBtn.classList.toggle("hidden", user.role !== "ADMIN");
+        newWorkerBtn.classList.toggle("hidden", !hasPermission("workers.edit"));
     }
     if (holidayNewBtn) {
         holidayNewBtn.classList.toggle("hidden", user.role !== "ADMIN");
@@ -650,7 +663,7 @@ function renderAdjustmentsTable() {
                 <td>Activo</td>
                 <td>
                     <div class="actions left">
-                        ${currentUser?.role === "ADMIN"
+                        ${hasPermission("payroll.edit")
                             ? `<button class="btn secondary small-btn adjustment-edit-btn" data-adjustment-id="${item.id}">Editar</button>
                                <button class="btn secondary small-btn adjustment-remove-btn" data-adjustment-id="${item.id}">Eliminar</button>`
                             : ""}
@@ -858,7 +871,7 @@ async function loadWorkers() {
                         <button class="btn secondary small-btn cancel-worker-inline-btn" data-worker-id="${worker.id}">Cancelar</button>
                    </div>`
                 : escapeHtml(contractLabel(worker.contract_type))}</td>
-            <td>${currentUser?.role === "ADMIN"
+            <td>${hasPermission("workers.edit")
                 ? editingWorkerId === worker.id
                     ? '<span class="rate-readonly">Seleccione contrato</span>'
                     : `<div class="actions left">
@@ -985,13 +998,13 @@ function selectedRateApplyMode() {
 function updateContextActionState() {
     const hasSelection = Boolean(currentContext && liquidationCycle.value && liquidationEmployee.value);
     const hasSingleSelection = hasSelection && liquidationEmployee.value !== "__ALL__";
-    editBtn?.classList.toggle("hidden", currentUser?.role !== "ADMIN" || !hasSingleSelection || editMode);
+    editBtn?.classList.toggle("hidden", !hasPermission("payroll.edit") || !hasSingleSelection || editMode);
     liquidationAddActivityBtn?.classList.toggle("hidden", !editMode || activeSheetMode !== "context" || !hasSingleSelection);
     saveBtn?.classList.toggle("hidden", !editMode || activeSheetMode !== "context");
     cancelEditBtn?.classList.toggle("hidden", !editMode || activeSheetMode !== "context");
     liquidationExportExcelBtn.disabled = !hasSelection;
     liquidationExportPdfBtn.disabled = !hasSelection;
-    liquidationEmailBtn.disabled = !hasSelection;
+    liquidationEmailBtn.disabled = !hasSingleSelection;
     liquidationSoftlandBtn.disabled = !hasSelection;
 }
 
@@ -1036,10 +1049,10 @@ function updateSearchActionState() {
     const single = isSingleSearchSelection();
     searchEditBtn?.classList.add("hidden");
     searchAdjustmentsBtn?.classList.add("hidden");
-    searchSingleActions?.classList.toggle("hidden", !(single && currentUser?.role === "ADMIN"));
+    searchSingleActions?.classList.toggle("hidden", !(single && hasPermission("payroll.edit")));
     searchExportExcelBtn.disabled = !displayedSearchSettlements.length && !single;
     searchExportPdfBtn.disabled = !displayedSearchSettlements.length && !single;
-    searchEmailBtn.disabled = !displayedSearchSettlements.length && !single;
+    searchEmailBtn.disabled = !single;
     searchSoftlandBtn.disabled = !displayedSearchSettlements.length && !single;
 }
 
@@ -1486,7 +1499,7 @@ async function loadRates() {
             <td>${row.amount === null ? '<span class="rate-readonly">Sin tarifa</span>' : money(row.amount)}</td>
             <td>${escapeHtml(row.effective_from_cycle_name || "Sin vigencia")}</td>
             <td>${escapeHtml(row.effective_to_cycle_name || "En adelante")}</td>
-            <td>${currentUser?.role === "ADMIN"
+            <td>${hasPermission("rates.edit")
                 ? `<button class="btn secondary small-btn edit-rate-btn"
                         data-rate-id="${row.rate_id ?? ""}"
                         data-concept-id="${row.concept_id}"
@@ -1657,7 +1670,7 @@ async function loadSearchSettlement() {
                             <span>Vista: <b>Consolidado</b></span>
                             <span>Centro: <b>D&R + Servicios</b></span>
                             <span>Ciclo: <b>${escapeHtml(settlement.cycle.cycle_name)}</b></span>
-                            ${currentUser?.role === "ADMIN" ? `
+                            ${hasPermission("payroll.edit") ? `
                                 <div class="stack-settlement-actions">
                                     <button class="btn secondary small-btn stack-edit-btn" data-cycle-id="${group.cycle.id}" data-employee-id="${settlement.employee.id}">Editar</button>
                                     <button class="btn secondary small-btn stack-adjustments-btn" data-cycle-id="${group.cycle.id}" data-employee-id="${settlement.employee.id}">Ajustes</button>
@@ -1793,6 +1806,7 @@ function setView(viewId) {
     }
 
     if (viewId === "rates") {
+        if (!hasPermission("rates.read")) return;
         currentContext = null;
         document.getElementById("rates").classList.add("active");
         title.textContent = "Tarifas";
@@ -1802,6 +1816,7 @@ function setView(viewId) {
     }
 
     if (viewId === "workers") {
+        if (!hasPermission("workers.read")) return;
         currentContext = null;
         document.getElementById("workers").classList.add("active");
         title.textContent = "Trabajadores";
@@ -1897,7 +1912,7 @@ navItems.forEach(item => {
 });
 
 searchEditBtn?.addEventListener("click", () => {
-    if (currentUser?.role !== "ADMIN" || activeSheetMode !== "search" || !isSingleSearchSelection()) return;
+    if (!hasPermission("payroll.edit") || activeSheetMode !== "search" || !isSingleSearchSelection()) return;
     editMode = true;
     searchEditBtn?.classList.add("hidden");
     searchSaveBtn.classList.remove("hidden");
@@ -1907,7 +1922,7 @@ searchEditBtn?.addEventListener("click", () => {
 
 editBtn?.addEventListener("click", () => {
     if (
-        currentUser?.role !== "ADMIN"
+        !hasPermission("payroll.edit")
         || activeSheetMode !== "context"
         || !currentContext
         || !liquidationCycle.value
@@ -1938,7 +1953,7 @@ cancelEditBtn?.addEventListener("click", async () => {
 });
 
 searchAdjustmentsBtn?.addEventListener("click", () => {
-    if (currentUser?.role !== "ADMIN") return;
+    if (!hasPermission("payroll.edit")) return;
     if (!isSingleSearchSelection()) {
         alert("Seleccione un solo ciclo y un solo trabajador.");
         return;
@@ -1947,7 +1962,7 @@ searchAdjustmentsBtn?.addEventListener("click", () => {
 });
 
 searchSingleEditBtn?.addEventListener("click", async () => {
-    if (currentUser?.role !== "ADMIN" || !isSingleSearchSelection()) return;
+    if (!hasPermission("payroll.edit") || !isSingleSearchSelection()) return;
     try {
         await openSearchEditModal(selectedSearchCycleIds[0], selectedSearchEmployeeIds[0]);
     } catch (error) {
@@ -1956,7 +1971,7 @@ searchSingleEditBtn?.addEventListener("click", async () => {
 });
 
 searchSingleAdjustmentsBtn?.addEventListener("click", () => {
-    if (currentUser?.role !== "ADMIN" || !isSingleSearchSelection()) return;
+    if (!hasPermission("payroll.edit") || !isSingleSearchSelection()) return;
     openAdjustmentsModal();
 });
 
@@ -2027,7 +2042,7 @@ searchEditModalSaveBtn?.addEventListener("click", async () => {
 
 spreadsheetSearch.addEventListener("click", async event => {
     const editButton = event.target.closest(".stack-edit-btn");
-    if (editButton && currentUser?.role === "ADMIN") {
+    if (editButton && hasPermission("payroll.edit")) {
         try {
             await openSearchEditModal(editButton.dataset.cycleId, editButton.dataset.employeeId);
         } catch (error) {
@@ -2037,7 +2052,7 @@ spreadsheetSearch.addEventListener("click", async event => {
     }
 
     const adjustmentsButton = event.target.closest(".stack-adjustments-btn");
-    if (adjustmentsButton && currentUser?.role === "ADMIN") {
+    if (adjustmentsButton && hasPermission("payroll.edit")) {
         try {
             await focusSearchSettlement(adjustmentsButton.dataset.cycleId, adjustmentsButton.dataset.employeeId);
             openAdjustmentsModal();
@@ -2053,7 +2068,7 @@ searchCancelEditBtn.addEventListener("click", async () => {
     editMode = false;
     searchSaveBtn.classList.add("hidden");
     searchCancelEditBtn.classList.add("hidden");
-    searchEditBtn?.classList.toggle("hidden", currentUser?.role !== "ADMIN");
+    searchEditBtn?.classList.toggle("hidden", !hasPermission("payroll.edit"));
     modal.classList.add("hidden");
     await loadSearchSettlement();
 });
@@ -2165,8 +2180,14 @@ saveUserBtn.addEventListener("click", async () => {
         alert("El usuario debe tener al menos 3 caracteres.");
         return;
     }
-    if (payload.password.length < 10) {
-        alert("La contraseña debe tener al menos 10 caracteres.");
+    if (payload.password.length < 6) {
+        alert("La contraseña debe tener al menos 6 caracteres.");
+        return;
+    }
+    if (!/[A-ZÁÉÍÓÚÜÑ]/.test(payload.password)
+        || !/[a-záéíóúüñ]/.test(payload.password)
+        || !/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]/.test(payload.password)) {
+        alert("La contraseña debe incluir mayúscula, minúscula y un carácter especial.");
         return;
     }
     saveUserBtn.disabled = true;
@@ -2412,7 +2433,7 @@ ratesTabs.addEventListener("click", event => {
 
 ratesTableBody.addEventListener("click", event => {
     const button = event.target.closest(".edit-rate-btn");
-    if (!button || currentUser?.role !== "ADMIN") return;
+    if (!button || !hasPermission("rates.edit")) return;
     openRateModal({
         rate_id: button.dataset.rateId ? Number(button.dataset.rateId) : null,
         concept_id: Number(button.dataset.conceptId),
@@ -2472,7 +2493,7 @@ rateSaveBtn.addEventListener("click", async () => {
 });
 
 newWorkerBtn?.addEventListener("click", () => {
-    if (currentUser?.role !== "ADMIN") return;
+    if (!hasPermission("workers.edit")) return;
     resetWorkerForm();
     openWorkerModal();
 });
@@ -2481,7 +2502,7 @@ cancelWorkerBtn?.addEventListener("click", resetWorkerForm);
 
 workersTableBody?.addEventListener("click", event => {
     const button = event.target.closest(".edit-worker-btn");
-    if (button && currentUser?.role === "ADMIN") {
+    if (button && hasPermission("workers.edit")) {
         editingWorkerId = Number(button.dataset.workerId);
         openWorkerModal({
             name: button.dataset.workerName || "",
@@ -2495,7 +2516,7 @@ workersTableBody?.addEventListener("click", event => {
         return;
     }
     const deleteButton = event.target.closest(".delete-worker-btn");
-    if (deleteButton && currentUser?.role === "ADMIN") {
+    if (deleteButton && hasPermission("workers.edit")) {
         const workerId = Number(deleteButton.dataset.workerId);
         const workerName = deleteButton.dataset.workerName || "este trabajador";
         if (!confirm(`¿Eliminar a ${workerName}?`)) {
@@ -2512,7 +2533,7 @@ workersTableBody?.addEventListener("click", event => {
         return;
     }
     const chooseButton = event.target.closest(".choose-worker-contract-btn");
-    if (chooseButton && currentUser?.role === "ADMIN") {
+    if (chooseButton && hasPermission("workers.edit")) {
         const workerId = Number(chooseButton.dataset.workerId);
         const contractType = chooseButton.dataset.contractType;
         apiRequest(`/workers/${workerId}`, {
@@ -2525,14 +2546,14 @@ workersTableBody?.addEventListener("click", event => {
         return;
     }
     const cancelButton = event.target.closest(".cancel-worker-inline-btn");
-    if (cancelButton && currentUser?.role === "ADMIN") {
+    if (cancelButton && hasPermission("workers.edit")) {
         editingWorkerId = null;
         loadWorkers().catch(error => alert(error.message));
     }
 });
 
 saveWorkerBtn?.addEventListener("click", async () => {
-    if (currentUser?.role !== "ADMIN") return;
+    if (!hasPermission("workers.edit")) return;
     saveWorkerBtn.disabled = true;
     try {
         const payload = {
@@ -2576,10 +2597,30 @@ searchExportPdfBtn?.addEventListener("click", () => {
 });
 
 searchEmailBtn?.addEventListener("click", () => {
-    pendingFeature("Enviar por Email quedo visible, pero falta configurar la cuenta del cliente y el flujo de envio.");
+    if (!hasPermission("payroll.email")) return;
+    if (!isSingleSearchSelection()) {
+        alert("Seleccione un solo ciclo y un solo trabajador.");
+        return;
+    }
+    const employee = searchEmployeesCache.find(
+        item => Number(item.id) === Number(selectedSearchEmployeeIds[0])
+    );
+    if (!confirm(`¿Enviar la liquidación de ${employee?.employee_name || "trabajador seleccionado"} al destinatario de prueba (sjorquera@unisan.cl)?`)) return;
+    searchEmailBtn.disabled = true;
+    apiRequest("/email/settlement", {
+        method: "POST",
+        body: JSON.stringify({
+            cycle_id: Number(selectedSearchCycleIds[0]),
+            employee_id: Number(selectedSearchEmployeeIds[0])
+        })
+    })
+        .then(result => alert(`Liquidación enviada exitosamente a ${result.recipient_name} (${result.recipient}).`))
+        .catch(error => alert(error.message))
+        .finally(() => updateSearchActionState());
 });
 
 searchSoftlandBtn?.addEventListener("click", () => {
+    if (!hasPermission("payroll.softland")) return;
     pendingFeature("Exportar Softland quedo preparado en la interfaz. Falta definir las columnas exactas del archivo.");
 });
 
@@ -2592,10 +2633,33 @@ liquidationExportPdfBtn?.addEventListener("click", () => {
 });
 
 liquidationEmailBtn?.addEventListener("click", () => {
-    pendingFeature("Enviar por Email quedo visible, pero falta configurar la cuenta del cliente y el flujo de envio.");
+    if (!hasPermission("payroll.email")) return;
+    if (!currentContext || !liquidationCycle.value || !liquidationEmployee.value
+        || liquidationEmployee.value === "__ALL__") {
+        alert("Seleccione un ciclo y un trabajador.");
+        return;
+    }
+    const employee = contextEmployeesCache.find(
+        item => Number(item.id) === Number(liquidationEmployee.value)
+    );
+    if (!confirm(`¿Enviar la liquidación de ${employee?.employee_name || "trabajador seleccionado"} al destinatario de prueba (sjorquera@unisan.cl)?`)) return;
+    liquidationEmailBtn.disabled = true;
+    apiRequest("/email/settlement", {
+        method: "POST",
+        body: JSON.stringify({
+            cycle_id: Number(liquidationCycle.value),
+            employee_id: Number(liquidationEmployee.value),
+            cost_center: currentContext.costCenter,
+            role_type: currentContext.roleType
+        })
+    })
+        .then(result => alert(`Liquidación enviada exitosamente a ${result.recipient_name} (${result.recipient}).`))
+        .catch(error => alert(error.message))
+        .finally(() => updateContextActionState());
 });
 
 liquidationSoftlandBtn?.addEventListener("click", () => {
+    if (!hasPermission("payroll.softland")) return;
     pendingFeature("Exportar Softland quedo preparado en la interfaz. Falta definir las columnas exactas del archivo.");
 });
 

@@ -53,9 +53,9 @@ def db_factory():
         create_user(
             db,
             username="consulta",
-            full_name="Usuario Consulta",
+            full_name="Usuario RRHH",
             password="consulta-password",
-            role_name="USER",
+            role_name="RRHH",
         )
     return factory
 

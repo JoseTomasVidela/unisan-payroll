@@ -33,7 +33,7 @@ def test_me_requires_token(client):
     assert client.get("/api/auth/me").status_code == 401
 
 
-def test_user_role_cannot_manage_users(client):
+def test_rrhh_role_cannot_manage_users(client):
     token = login(client, "consulta", "consulta-password")
 
     response = client.get(
@@ -53,13 +53,15 @@ def test_admin_can_create_user(client):
         json={
             "username": "nuevo",
             "full_name": "Nuevo Usuario",
-            "password": "nuevo-password",
-            "role_name": "USER",
+            "password": "Nuevo-password!",
+            "role_name": "OPERATIVO",
         },
     )
 
     assert response.status_code == 201
-    assert response.json()["permissions"] == ["payroll.export", "payroll.read"]
+    assert response.json()["permissions"] == [
+        "payroll.edit", "payroll.export", "payroll.import", "payroll.read"
+    ]
 
 
 def test_admin_can_list_roles_and_permissions(client):
@@ -70,7 +72,7 @@ def test_admin_can_list_roles_and_permissions(client):
     permissions = client.get("/api/permissions", headers=headers)
 
     assert roles.status_code == 200
-    assert {role["role_name"] for role in roles.json()} == {"ADMIN", "USER"}
+    assert {role["role_name"] for role in roles.json()} == {"ADMIN", "OPERATIVO", "RRHH"}
     assert permissions.status_code == 200
     assert "users.manage" in {
         permission["permission_code"] for permission in permissions.json()

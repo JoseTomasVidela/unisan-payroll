@@ -260,9 +260,9 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
     page_height = 842
     margin = 34
     table_row_height = 18
-    table_col_widths = [270, 58, 92, 107]
-    table_headers = ["DESCRIPCION", "CANT", "P. UNITARIO", "MONTO"]
-    week_table_headers = ["DESCRIPCION", "CANT", "P. UNITARIO", "A PAGAR"]
+    table_col_widths = [239, 50, 78, 78, 82]
+    table_headers = ["DESCRIPCION", "CANT", "P. UNITARIO", "MONTO", "A PAGAR"]
+    week_table_headers = table_headers
 
     employee_name = settlement["employee"]["employee_name"]
     cycle_name = settlement["cycle"]["cycle_name"]
@@ -400,20 +400,16 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
 
     def _build_main_rows() -> list[list[str]]:
         rows: list[list[str]] = []
-        for row in concept_rows:
+        activity_total = Decimal(str(settlement["total_to_pay"] or 0))
+        for index, row in enumerate(concept_rows):
             amount = Decimal(str(row["total"] or 0))
             rows.append([
                 str(row["concept_name"]).upper(),
                 _format_peso_number(row["units"]),
                 _format_peso_number(row["rate"]),
                 _format_peso_number(amount),
+                _format_peso_number(activity_total) if index == 0 else "",
             ])
-        rows.append([
-            "TOTAL",
-            "",
-            "",
-            _format_peso_number(settlement["total_to_pay"]),
-        ])
         return rows
 
     def _build_week_corrida_rows() -> list[list[str]]:
@@ -425,6 +421,7 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
             _format_peso_number(week_corrida_row["units"]),
             _format_peso_number(week_corrida_row["rate"]),
             _format_peso_number(amount),
+            _format_peso_number(amount),
         ]]
 
     def _build_adjustment_rows() -> list[list[str]]:
@@ -435,6 +432,7 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
                 str(row["concept_name"]).upper(),
                 _format_peso_number(row["units"]),
                 _format_peso_number(row["rate"]),
+                _format_peso_number(amount),
                 _format_peso_number(amount),
             ])
         return rows
@@ -495,6 +493,7 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
 
     pages: list[str] = []
     page_index = 1
+    page_total_hint = 1
     stream: list[str] = ["1 w", "0 0 0 RG", "0 0 0 rg"]
     y = _draw_header(stream, page_index, 1)
 
@@ -505,7 +504,7 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
         pages.append("\n".join(stream))
         page_index += 1
         stream = ["1 w", "0 0 0 RG", "0 0 0 rg"]
-        y = _draw_header(stream, page_index, 1)
+        y = _draw_header(stream, page_index, page_total_hint)
 
     ensure_space(_estimate_section_height(len(main_rows)))
     y = _draw_table(stream, main_rows, y, table_headers)
@@ -523,8 +522,8 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
     y -= 8
     total_box_height = 18
     total_table_width = sum(table_col_widths)
-    left_total_width = sum(table_col_widths[:3])
-    right_total_width = table_col_widths[3]
+    left_total_width = sum(table_col_widths[:4])
+    right_total_width = table_col_widths[4]
     final_total = Decimal(str(settlement["production_total"]))
 
     ensure_space(110)
@@ -553,6 +552,7 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
     if total_pages > 1:
         pages = []
         page_index = 1
+        page_total_hint = total_pages
         stream = ["1 w", "0 0 0 RG", "0 0 0 rg"]
         y = _draw_header(stream, page_index, total_pages)
         ensure_space(_estimate_section_height(len(main_rows)))

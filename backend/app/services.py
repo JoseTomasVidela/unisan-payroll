@@ -14,12 +14,25 @@ PERMISSIONS = {
     "payroll.export": "Exportar liquidaciones",
     "payroll.import": "Importar archivos operacionales",
     "payroll.edit": "Editar producción diaria",
+    "payroll.email": "Enviar liquidaciones por email",
+    "payroll.softland": "Exportar liquidaciones a Softland",
+    "rates.read": "Consultar tarifas",
+    "rates.edit": "Editar tarifas",
+    "workers.read": "Consultar trabajadores",
+    "workers.edit": "Editar trabajadores",
     "users.manage": "Administrar usuarios",
 }
 
 ROLE_PERMISSIONS = {
     "ADMIN": tuple(PERMISSIONS),
-    "USER": ("payroll.read", "payroll.export"),
+    "RRHH": (
+        "payroll.read", "payroll.export", "payroll.edit", "payroll.email",
+        "payroll.softland", "rates.read", "rates.edit", "workers.read",
+        "workers.edit",
+    ),
+    "OPERATIVO": (
+        "payroll.read", "payroll.export", "payroll.import", "payroll.edit",
+    ),
 }
 
 
@@ -40,7 +53,14 @@ def seed_roles_and_permissions(db: Session) -> None:
         if role is None:
             role = Role(role_name=role_name, description=f"Perfil {role_name}")
             db.add(role)
+        role.active = True
         role.permissions = [permissions[code] for code in permission_codes]
+
+    # Keep the legacy row only for referential integrity with historical users.
+    legacy_user_role = db.scalar(select(Role).where(Role.role_name == "USER"))
+    if legacy_user_role is not None:
+        legacy_user_role.active = False
+        legacy_user_role.permissions = []
     db.commit()
 
 
