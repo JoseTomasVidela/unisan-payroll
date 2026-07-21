@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "backend/**"
+      - "frontend/working_ui/**"
       - "frontend/build/**"
       - ".github/workflows/main_unisanpayroll.yml"
   workflow_dispatch:
@@ -35,10 +36,10 @@ jobs:
       - name: Prepare backend package
         run: |
           mkdir -p deploy/backend
-          mkdir -p deploy/frontend
+          mkdir -p deploy/frontend/build
           cp -R backend/. deploy/backend/
           cp backend/requirements.txt deploy/requirements.txt
-          if [ -d frontend/build ]; then cp -R frontend/build deploy/frontend/build; fi
+          cp -R frontend/working_ui/. deploy/frontend/build/
 
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4

@@ -2,12 +2,6 @@ name: Deploy Payroll Backend to Azure
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "backend/**"
-      - ".github/workflows/azure-payroll-backend.yml"
 
 jobs:
   deploy:
