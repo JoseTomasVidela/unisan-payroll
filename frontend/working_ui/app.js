@@ -449,15 +449,51 @@ async function loadDashboard() {
         importsTableBody.innerHTML = imports.map(item => `
             <tr>
                 <td>${new Date(item.imported_at).toLocaleDateString("es-CL")}</td>
+                <td>${escapeHtml(item.cycle_name)}</td>
                 <td>${escapeHtml(item.file_name)}</td>
                 <td><span class="tag ${item.source_type === "DR" ? "green-tag" : "blue-tag"}">${item.source_type}</span></td>
                 <td>${item.rows_imported}</td>
                 <td>${escapeHtml(item.imported_by)}</td>
+                <td>${currentUser?.role === "ADMIN"
+                    ? `<button class="btn danger small-btn delete-import-cycle-btn"
+                            data-cycle-id="${item.cycle_id}"
+                            data-cycle-name="${escapeHtml(item.cycle_name)}"
+                            data-source-type="${item.source_type}">
+                            Eliminar ciclo
+                       </button>`
+                    : ""}</td>
             </tr>
         `).join("");
     }
     await loadHolidayCalendar();
 }
+
+importsTableBody?.addEventListener("click", async event => {
+    const button = event.target.closest(".delete-import-cycle-btn");
+    if (!button || currentUser?.role !== "ADMIN") return;
+    const cycleName = button.dataset.cycleName;
+    const sourceType = button.dataset.sourceType;
+    const accepted = confirm(
+        `Esta acción eliminará toda la información importada de ${sourceType} para el ciclo ${cycleName}.\n\nNo se puede deshacer. ¿Desea continuar?`
+    );
+    if (!accepted) return;
+    button.disabled = true;
+    try {
+        const result = await apiRequest(
+            `/imports/cycles/${button.dataset.cycleId}/${sourceType}`,
+            {method: "DELETE"}
+        );
+        alert(
+            `Ciclo ${result.cycle_name} (${result.source_type}) eliminado correctamente. `
+            + `${result.records_deleted} registros eliminados.`
+        );
+        await loadDashboard();
+        await loadCycleDropdowns();
+    } catch (error) {
+        alert(error.message);
+        button.disabled = false;
+    }
+});
 
 async function loadCycleDropdowns() {
     cyclesCache = await apiRequest("/cycles");
@@ -1162,7 +1198,7 @@ function settlementToSheetData(settlement, contextOverride = null) {
         item.holiday_names || []
     ]);
     const sheetRows = [
-        {label:"Estado", units:"", rate:"", total:"", values:sheetDates.map(item => item[2]), status:true},
+        {label:"Estado", units:"", rate:"", total:"", values:sheetDates.map(item => item[2]), originalValues:sheetDates.map(item => item[2]), status:true},
         ...settlement.rows.map(row => ({
             rowType: row.row_type,
             conceptId: row.concept_id,
@@ -1432,7 +1468,27 @@ function renderSpreadsheetMarkup(sheetData, allowEdit = false) {
             const holidayClass = d[4] ? "holiday-cell" : "";
             const holidayTitle = d[4] && d[5]?.length ? ` title="${escapeHtml(d[5].join(", "))}"` : "";
             const blue = row.status || row.totalRow || row.summary ? "blue" : "";
-            if (row.status) {
+            if (row.status && allowEdit) {
+                const statusOptions = [
+                    "Licencia",
+                    "Vacaciones",
+                    "Libre compensatorio",
+                    "Descanso",
+                    "Feriado",
+                    "Inasistencia",
+                    "Sin producción"
+                ];
+                const currentStatus = String(val || "");
+                html += `<td class="status-head ${holidayClass}"${holidayTitle}>
+                    <select class="status-input" data-row="${rIndex}" data-col="${cIndex}">
+                        ${!currentStatus ? '<option value="" selected disabled>Seleccione estado</option>' : ""}
+                        ${currentStatus && !statusOptions.includes(currentStatus)
+                            ? `<option value="${escapeHtml(currentStatus)}" selected disabled>${escapeHtml(currentStatus)}</option>`
+                            : ""}
+                        ${statusOptions.map(option => `<option value="${escapeHtml(option)}" ${option === currentStatus ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}
+                    </select>
+                </td>`;
+            } else if (row.status) {
                 html += `<td class="status-head ${holidayClass}"${holidayTitle}>${val}</td>`;
             } else if (allowEdit && row.conceptId) {
                 html += `<td class="${`${blue} ${holidayClass}`.trim()}"${holidayTitle}>
@@ -2008,22 +2064,40 @@ searchEditModalSaveBtn?.addEventListener("click", async () => {
         })
         .filter(item => item.changed)
         .map(({concept_id, work_date, value}) => ({concept_id, work_date, value}));
+    const statusUpdates = collectStatusUpdates(
+        searchEditSpreadsheet,
+        editModalRows,
+        editModalCycleDate
+    );
 
-    if (!updates.length) {
+    if (!updates.length && !statusUpdates.length) {
         closeSearchEditModal();
         return;
     }
 
     searchEditModalSaveBtn.disabled = true;
     try {
-        const settlement = await apiRequest("/liquidations/cells", {
-            method: "POST",
-            body: JSON.stringify({
-                cycle_id: editModalCycleId,
-                employee_id: editModalEmployeeId,
-                updates
-            })
-        });
+        let settlement;
+        if (updates.length) {
+            settlement = await apiRequest("/liquidations/cells", {
+                method: "POST",
+                body: JSON.stringify({
+                    cycle_id: editModalCycleId,
+                    employee_id: editModalEmployeeId,
+                    updates
+                })
+            });
+        }
+        if (statusUpdates.length) {
+            settlement = await apiRequest("/liquidations/statuses", {
+                method: "POST",
+                body: JSON.stringify({
+                    cycle_id: editModalCycleId,
+                    employee_id: editModalEmployeeId,
+                    updates: statusUpdates
+                })
+            });
+        }
         const sheetData = settlementToSheetData(settlement, {
             centerLabel: "D&R + Servicios",
             roleLabel: "Consolidado"
@@ -2088,7 +2162,12 @@ confirmSave.addEventListener("click", async () => {
         })
         .filter(item => item.changed)
         .map(({concept_id, work_date, value}) => ({concept_id, work_date, value}));
-    if (!updates.length) {
+    const statusUpdates = collectStatusUpdates(
+        activeSheetContainer,
+        rows,
+        settlementCycleDate
+    );
+    if (!updates.length && !statusUpdates.length) {
         editMode = false;
         searchSaveBtn.classList.add("hidden");
         searchCancelEditBtn.classList.add("hidden");
@@ -2115,10 +2194,33 @@ confirmSave.addEventListener("click", async () => {
                 employee_id: selectedSearchEmployeeIds[0],
                 updates
             };
-        const settlement = await apiRequest(endpoint, {
-            method: "POST",
-            body: JSON.stringify(payload)
-        });
+        let settlement;
+        if (updates.length) {
+            settlement = await apiRequest(endpoint, {
+                method: "POST",
+                body: JSON.stringify(payload)
+            });
+        }
+        if (statusUpdates.length) {
+            const statusEndpoint = isContextSave ? "/settlements/statuses" : "/liquidations/statuses";
+            const statusPayload = isContextSave
+                ? {
+                    cycle_id: Number(liquidationCycle.value),
+                    employee_id: Number(liquidationEmployee.value),
+                    cost_center: currentContext.costCenter,
+                    role_type: currentContext.roleType,
+                    updates: statusUpdates
+                }
+                : {
+                    cycle_id: selectedSearchCycleIds[0],
+                    employee_id: selectedSearchEmployeeIds[0],
+                    updates: statusUpdates
+                };
+            settlement = await apiRequest(statusEndpoint, {
+                method: "POST",
+                body: JSON.stringify(statusPayload)
+            });
+        }
         editMode = false;
         searchSaveBtn.classList.add("hidden");
         searchCancelEditBtn.classList.add("hidden");
@@ -2671,6 +2773,22 @@ if (existingToken) {
             setView("dashboard");
         }).catch(error => alert(error.message));
     }).catch(closeSession);
+}
+
+function collectStatusUpdates(container, sheetRows, dateResolver) {
+    return [...container.querySelectorAll(".status-input")]
+        .map(input => {
+            const rowIndex = Number(input.dataset.row);
+            const columnIndex = Number(input.dataset.col);
+            const row = sheetRows[rowIndex];
+            return {
+                work_date: dateResolver(columnIndex),
+                status: input.value,
+                changed: input.value !== String(row.originalValues?.[columnIndex] || "")
+            };
+        })
+        .filter(item => item.changed)
+        .map(({work_date, status}) => ({work_date, status}));
 }
 
 initializeRememberedLogin();
