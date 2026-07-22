@@ -47,7 +47,7 @@ def test_production_table_validation_reports_missing_tables():
         validate_required_tables(target_engine)
 
 
-def test_production_bootstrap_only_validates_tables():
+def test_production_bootstrap_validates_tables_and_syncs_permissions():
     settings = production_settings(
         "mysql+pymysql://user:password@server.mysql.database.azure.com/unisan_db"
     )
@@ -55,12 +55,14 @@ def test_production_bootstrap_only_validates_tables():
 
     with patch("app.main.validate_required_tables") as validate_tables:
         with patch("app.main.Base.metadata.create_all") as create_all:
-            with patch("app.main.seed_roles_and_permissions") as seed:
-                bootstrap(settings=settings, target_engine=target_engine)
+            with patch("app.main.Session") as session_factory:
+                with patch("app.main.seed_roles_and_permissions") as seed:
+                    bootstrap(settings=settings, target_engine=target_engine)
 
     validate_tables.assert_called_once_with(target_engine)
     create_all.assert_not_called()
-    seed.assert_not_called()
+    session_factory.assert_called_once_with(target_engine)
+    seed.assert_called_once_with(session_factory.return_value.__enter__.return_value)
 
 
 def test_sqlite_bootstrap_creates_local_tables():
