@@ -7,7 +7,7 @@ from openpyxl import Workbook
 from sqlalchemy import func, select
 
 from app.importer import DR_HEADERS, SERVICES_HEADERS, cycle_definition_for_date
-from app.models import PayrollCycle, PayrollRecord
+from app.models import Employee, PayrollAuditLog, PayrollCycle, PayrollImport, PayrollRecord
 from conftest import login
 
 
@@ -57,6 +57,56 @@ def test_import_dr_creates_driver_and_valid_assistant(client, db_factory):
         assert assistant.saturday_week_2_qty == 5
         assert assistant.sunday_week_2_qty == 6
         assert assistant.duration_minutes == 150
+
+
+def test_admin_can_delete_and_reimport_complete_dr_cycle(client, db_factory):
+    row = [
+        "Operador Uno", None, "OP-1", date(2026, 5, 22), None, None, "OK",
+        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, None, 0, 0, 0, 0, 0, 0, 0, 0,
+    ]
+    content = workbook_bytes(DR_HEADERS, [row])
+    headers = auth_headers(client)
+    upload = {
+        "headers": headers,
+        "data": {"confirm_reimport": "false"},
+        "files": {"file": ("dr.xlsx", content, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    }
+    imported = client.post("/api/imports/DR", **upload)
+    assert imported.status_code == 200
+    cycle_id = imported.json()["cycle_ids"][0]
+
+    history = client.get("/api/imports", headers=headers)
+    assert history.status_code == 200
+    assert history.json()[0]["cycle_id"] == cycle_id
+    assert history.json()[0]["cycle_name"]
+
+    deleted = client.delete(f"/api/imports/cycles/{cycle_id}/DR", headers=headers)
+    assert deleted.status_code == 200
+    assert deleted.json()["imports_deleted"] == 1
+    assert deleted.json()["records_deleted"] == 1
+    with db_factory() as db:
+        assert db.scalar(select(func.count(PayrollImport.id))) == 0
+        assert db.scalar(select(func.count(PayrollRecord.id))) == 0
+        assert db.scalar(select(func.count(Employee.id))) == 1
+        audit = db.scalar(
+            select(PayrollAuditLog).where(
+                PayrollAuditLog.action_type == "DELETE_IMPORTED_CYCLE"
+            )
+        )
+        assert audit is not None
+
+    reimported = client.post("/api/imports/DR", **upload)
+    assert reimported.status_code == 200
+    assert reimported.json()["records_inserted"] == 1
+
+
+def test_non_admin_cannot_delete_imported_cycle(client):
+    token = login(client, "consulta", "consulta-password")
+    response = client.delete(
+        "/api/imports/cycles/1/DR",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 403
 
 
 def test_possible_reimport_requires_explicit_confirmation(client, db_factory):

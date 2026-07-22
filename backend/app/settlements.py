@@ -66,6 +66,15 @@ WORKED_DAY_ONE_STATUSES = {
     "sin produccion",
     "inasistencia",
 }
+EDITABLE_STATUSES = {
+    "licencia": "Licencia",
+    "vacaciones": "Vacaciones",
+    "libre compensatorio": "Libre compensatorio",
+    "descanso": "Descanso",
+    "feriado": "Feriado",
+    "inasistencia": "Inasistencia",
+    "sin produccion": "Sin producción",
+}
 
 
 def inclusive_dates(start_date: date, end_date: date) -> list[date]:
@@ -777,6 +786,74 @@ class SettlementEngine:
             raise ValueError(
                 "El esquema actual no soporta overrides manuales de celdas."
             ) from exc
+        db.flush()
+        return self.build(
+            db,
+            cycle_id=cycle_id,
+            employee_id=employee_id,
+            cost_center=cost_center,
+            role_type=role_type,
+        )
+
+    def update_daily_statuses(
+        self,
+        db: Session,
+        *,
+        cycle_id: int,
+        employee_id: int,
+        cost_center: str | None,
+        role_type: str | None,
+        updates: list[tuple[date, str]],
+        user_id: int,
+    ) -> dict[str, object]:
+        cycle = db.get(PayrollCycle, cycle_id)
+        if cycle is None:
+            raise LookupError("Ciclo no encontrado.")
+        employee = db.get(Employee, employee_id)
+        if employee is None:
+            raise LookupError("Trabajador no encontrado.")
+        related_employee_ids = [
+            item.id
+            for item in db.scalars(select(Employee).order_by(Employee.id)).all()
+            if names_refer_to_same_person(item.employee_name, employee.employee_name)
+        ]
+        for work_date, status in updates:
+            if work_date < cycle.start_date or work_date > cycle.end_date:
+                raise ValueError("La fecha no pertenece al ciclo seleccionado.")
+            normalized_status = self._normalize_status(status)
+            if normalized_status not in EDITABLE_STATUSES:
+                raise ValueError("Estado de liquidación inválido.")
+            canonical_status = EDITABLE_STATUSES[normalized_status]
+            filters = [
+                PayrollRecord.cycle_id == cycle_id,
+                PayrollRecord.employee_id.in_(related_employee_ids),
+                PayrollRecord.work_date == work_date,
+            ]
+            if cost_center is not None:
+                filters.append(PayrollRecord.cost_center == cost_center)
+            if role_type is not None:
+                filters.append(PayrollRecord.role_type == role_type)
+            records = list(
+                db.scalars(select(PayrollRecord).where(*filters).order_by(PayrollRecord.id)).all()
+            )
+            if not records:
+                raise LookupError("No existen registros para cambiar el estado de esa fecha.")
+            for record in records:
+                old_value = record.status
+                if old_value == canonical_status:
+                    continue
+                record.status = canonical_status
+                db.add(
+                    PayrollAuditLog(
+                        user_id=user_id,
+                        action_type="UPDATE_DAILY_STATUS",
+                        table_name="payroll_records",
+                        record_id=record.id,
+                        field_name="status",
+                        old_value=old_value,
+                        new_value=canonical_status,
+                    )
+                )
         db.flush()
         return self.build(
             db,

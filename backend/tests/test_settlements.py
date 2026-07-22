@@ -840,6 +840,53 @@ def test_admin_updates_single_daily_cell_and_recalculates(client, db_factory):
         assert audit[0].field_name == "override_value"
 
 
+def test_admin_updates_daily_status_and_recalculates_week_corrida(client, db_factory):
+    driver_id, _ = seed_settlement(db_factory)
+    response = client.post(
+        "/api/settlements/statuses",
+        headers=auth_headers(client),
+        json={
+            "cycle_id": 1,
+            "employee_id": driver_id,
+            "cost_center": "DR",
+            "role_type": "DRIVER",
+            "updates": [{"work_date": "2026-05-23", "status": "Licencia"}],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    status = next(item for item in body["statuses"] if item["date"] == "2026-05-23")
+    worked_day = next(row for row in body["rows"] if row["row_type"] == "worked_day")
+    target_day = next(item for item in worked_day["daily_values"] if item["date"] == "2026-05-23")
+    assert status["status"] == "Licencia"
+    assert Decimal(target_day["value"]) == Decimal("0")
+    with db_factory() as db:
+        records = db.scalars(
+            select(PayrollRecord).where(PayrollRecord.work_date == date(2026, 5, 23))
+        ).all()
+        assert records
+        assert {record.status for record in records} == {"Licencia"}
+        assert db.scalar(
+            select(PayrollAuditLog).where(
+                PayrollAuditLog.action_type == "UPDATE_DAILY_STATUS"
+            )
+        ) is not None
+
+
+def test_daily_status_rejects_unknown_value(client, db_factory):
+    driver_id, _ = seed_settlement(db_factory)
+    response = client.post(
+        "/api/liquidations/statuses",
+        headers=auth_headers(client),
+        json={
+            "cycle_id": 1,
+            "employee_id": driver_id,
+            "updates": [{"work_date": "2026-05-23", "status": "Otro"}],
+        },
+    )
+    assert response.status_code == 400
+
+
 def test_update_daily_cell_with_multiple_records_creates_override(client, db_factory):
     driver_id, _ = seed_settlement(db_factory)
 

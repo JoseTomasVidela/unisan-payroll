@@ -80,11 +80,23 @@ class CycleResponse(BaseModel):
 
 class ImportHistoryResponse(BaseModel):
     id: int
+    cycle_id: int
+    cycle_name: str
     imported_at: datetime
     file_name: str
     source_type: str
     rows_imported: int
     imported_by: str
+
+
+class ImportCycleDeleteResponse(BaseModel):
+    cycle_id: int
+    cycle_name: str
+    source_type: str
+    imports_deleted: int
+    records_deleted: int
+    overrides_deleted: int
+    adjustments_deleted: int
 
 
 class ImportResponse(BaseModel):
@@ -312,6 +324,19 @@ class SettlementCellUpdateRequest(BaseModel):
     cost_center: str | None = None
     role_type: str | None = None
     updates: list[SettlementCellUpdateItem] = Field(min_length=1)
+
+
+class SettlementStatusUpdateItem(BaseModel):
+    work_date: date
+    status: str = Field(min_length=1, max_length=120)
+
+
+class SettlementStatusUpdateRequest(BaseModel):
+    cycle_id: int
+    employee_id: int
+    cost_center: str | None = None
+    role_type: str | None = None
+    updates: list[SettlementStatusUpdateItem] = Field(min_length=1)
 
 
 class RateListItemResponse(BaseModel):

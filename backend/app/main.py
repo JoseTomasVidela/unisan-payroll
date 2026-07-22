@@ -12,7 +12,7 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFi
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import func, inspect, select, text
+from sqlalchemy import delete, func, inspect, select, text
 from sqlalchemy.orm import Session
 
 from .config import Settings, get_settings
@@ -57,6 +57,7 @@ from .schemas import (
     HolidayResponse,
     HolidayUpdateRequest,
     ImportHistoryResponse,
+    ImportCycleDeleteResponse,
     ImportResponse,
     LoginRequest,
     LoginResponse,
@@ -72,6 +73,7 @@ from .schemas import (
     SearchEmployeeOptionResponse,
     SearchResponse,
     SettlementCellUpdateRequest,
+    SettlementStatusUpdateRequest,
     SettlementEmailRequest,
     SettlementResponse,
     SettlementRateUpdateRequest,
@@ -1471,6 +1473,61 @@ def update_settlement_cells(
     return SettlementResponse.model_validate(result)
 
 
+def _update_settlement_statuses(
+    payload: SettlementStatusUpdateRequest,
+    db: Session,
+    current_user: User,
+) -> SettlementResponse:
+    normalized_cost_center = payload.cost_center.upper() if payload.cost_center else None
+    normalized_role_type = payload.role_type.upper() if payload.role_type else None
+    if normalized_cost_center in {"ALL", "CONSOLIDATED"}:
+        normalized_cost_center = None
+    if normalized_role_type in {"ALL", "CONSOLIDATED"}:
+        normalized_role_type = None
+    if normalized_cost_center is not None and normalized_cost_center not in {"DR", "SERVICES"}:
+        raise HTTPException(status_code=400, detail="Centro de costo invalido.")
+    if normalized_role_type is not None and normalized_role_type not in {"DRIVER", "ASSISTANT"}:
+        raise HTTPException(status_code=400, detail="Cargo invalido.")
+    try:
+        result = settlement_engine.update_daily_statuses(
+            db,
+            cycle_id=payload.cycle_id,
+            employee_id=payload.employee_id,
+            cost_center=normalized_cost_center,
+            role_type=normalized_role_type,
+            updates=[(item.work_date, item.status) for item in payload.updates],
+            user_id=current_user.id,
+        )
+        db.commit()
+    except LookupError as exc:
+        db.rollback()
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return SettlementResponse.model_validate(result)
+
+
+@app.post("/api/liquidations/statuses", response_model=SettlementResponse)
+def update_liquidation_statuses(
+    payload: SettlementStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("payroll.edit")),
+) -> SettlementResponse:
+    payload.cost_center = None
+    payload.role_type = None
+    return _update_settlement_statuses(payload, db, current_user)
+
+
+@app.post("/api/settlements/statuses", response_model=SettlementResponse)
+def update_settlement_statuses(
+    payload: SettlementStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("payroll.edit")),
+) -> SettlementResponse:
+    return _update_settlement_statuses(payload, db, current_user)
+
+
 @app.get("/api/rates", response_model=list[RateListItemResponse])
 def list_rates(
     cost_center: str,
@@ -1579,22 +1636,114 @@ def list_imports(
     _: User = Depends(require_permission("payroll.import")),
 ) -> list[ImportHistoryResponse]:
     rows = db.execute(
-        select(PayrollImport, User.username)
+        select(PayrollImport, User.username, PayrollCycle.cycle_name)
         .join(User, User.id == PayrollImport.imported_by)
+        .join(PayrollCycle, PayrollCycle.id == PayrollImport.cycle_id)
         .order_by(PayrollImport.imported_at.desc())
         .limit(100)
     ).all()
     return [
         ImportHistoryResponse(
             id=payroll_import.id,
+            cycle_id=payroll_import.cycle_id,
+            cycle_name=cycle_name,
             imported_at=payroll_import.imported_at,
             file_name=payroll_import.file_name,
             source_type=payroll_import.source_type,
             rows_imported=payroll_import.rows_imported,
             imported_by=username,
         )
-        for payroll_import, username in rows
+        for payroll_import, username, cycle_name in rows
     ]
+
+
+@app.delete(
+    "/api/imports/cycles/{cycle_id}/{source_type}",
+    response_model=ImportCycleDeleteResponse,
+)
+def delete_imported_cycle(
+    cycle_id: int,
+    source_type: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("payroll.import")),
+) -> ImportCycleDeleteResponse:
+    if current_user.role.role_name != "ADMIN":
+        raise HTTPException(status_code=403, detail="Solo ADMIN puede eliminar ciclos importados.")
+    normalized_source = source_type.upper()
+    if normalized_source not in {"DR", "SERVICES"}:
+        raise HTTPException(status_code=400, detail="Tipo de importación inválido.")
+    cycle = db.get(PayrollCycle, cycle_id)
+    if cycle is None:
+        raise HTTPException(status_code=404, detail="Ciclo no encontrado.")
+    import_ids = list(
+        db.scalars(
+            select(PayrollImport.id).where(
+                PayrollImport.cycle_id == cycle_id,
+                PayrollImport.source_type == normalized_source,
+            )
+        ).all()
+    )
+    if not import_ids:
+        raise HTTPException(
+            status_code=404,
+            detail="No existe una importación de ese tipo para el ciclo seleccionado.",
+        )
+    try:
+        records_deleted = db.execute(
+            delete(PayrollRecord).where(PayrollRecord.import_id.in_(import_ids))
+        ).rowcount or 0
+        overrides_deleted = db.execute(
+            delete(PayrollCellOverride).where(
+                PayrollCellOverride.cycle_id == cycle_id,
+                PayrollCellOverride.cost_center == normalized_source,
+            )
+        ).rowcount or 0
+        adjustments_deleted = db.execute(
+            delete(PayrollManualAdjustment).where(
+                PayrollManualAdjustment.cycle_id == cycle_id,
+                PayrollManualAdjustment.cost_center == normalized_source,
+            )
+        ).rowcount or 0
+        db.execute(
+            delete(PayrollExportLog).where(
+                PayrollExportLog.cycle_id == cycle_id,
+                PayrollExportLog.cost_center == normalized_source,
+            )
+        )
+        imports_deleted = db.execute(
+            delete(PayrollImport).where(PayrollImport.id.in_(import_ids))
+        ).rowcount or 0
+        db.add(
+            PayrollAuditLog(
+                user_id=current_user.id,
+                action_type="DELETE_IMPORTED_CYCLE",
+                table_name="payroll_imports",
+                record_id=cycle_id,
+                field_name="source_type",
+                old_value=f"{cycle.cycle_name} / {normalized_source}",
+                new_value=json.dumps(
+                    {
+                        "imports_deleted": imports_deleted,
+                        "records_deleted": records_deleted,
+                        "overrides_deleted": overrides_deleted,
+                        "adjustments_deleted": adjustments_deleted,
+                    }
+                ),
+            )
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return ImportCycleDeleteResponse(
+        cycle_id=cycle_id,
+        cycle_name=cycle.cycle_name,
+        source_type=normalized_source,
+        imports_deleted=imports_deleted,
+        records_deleted=records_deleted,
+        overrides_deleted=overrides_deleted,
+        adjustments_deleted=adjustments_deleted,
+    )
 
 
 @app.post("/api/imports/{source_type}", response_model=ImportResponse)
