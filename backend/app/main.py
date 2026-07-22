@@ -104,6 +104,7 @@ def bootstrap(
 
     if not is_sqlite_url(settings.database_url):
         validate_required_tables(target_engine)
+        PayrollHoliday.__table__.create(bind=target_engine, checkfirst=True)
         with Session(target_engine) as db:
             seed_roles_and_permissions(db)
         return

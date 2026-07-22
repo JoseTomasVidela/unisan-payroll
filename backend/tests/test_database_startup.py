@@ -55,11 +55,13 @@ def test_production_bootstrap_validates_tables_and_syncs_permissions():
 
     with patch("app.main.validate_required_tables") as validate_tables:
         with patch("app.main.Base.metadata.create_all") as create_all:
-            with patch("app.main.Session") as session_factory:
-                with patch("app.main.seed_roles_and_permissions") as seed:
-                    bootstrap(settings=settings, target_engine=target_engine)
+            with patch("app.main.PayrollHoliday.__table__.create") as create_holidays:
+                with patch("app.main.Session") as session_factory:
+                    with patch("app.main.seed_roles_and_permissions") as seed:
+                        bootstrap(settings=settings, target_engine=target_engine)
 
     validate_tables.assert_called_once_with(target_engine)
+    create_holidays.assert_called_once_with(bind=target_engine, checkfirst=True)
     create_all.assert_not_called()
     session_factory.assert_called_once_with(target_engine)
     seed.assert_called_once_with(session_factory.return_value.__enter__.return_value)
