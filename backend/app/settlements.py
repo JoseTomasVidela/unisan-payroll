@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
+import hashlib
 import unicodedata
 
 from sqlalchemy import and_, func, or_, select, tuple_
@@ -838,7 +839,44 @@ class SettlementEngine:
                 db.scalars(select(PayrollRecord).where(*filters).order_by(PayrollRecord.id)).all()
             )
             if not records:
-                raise LookupError("No existen registros para cambiar el estado de esa fecha.")
+                template_filters = [
+                    PayrollRecord.cycle_id == cycle_id,
+                    PayrollRecord.employee_id.in_(related_employee_ids),
+                ]
+                if cost_center is not None:
+                    template_filters.append(PayrollRecord.cost_center == cost_center)
+                if role_type is not None:
+                    template_filters.append(PayrollRecord.role_type == role_type)
+                template = db.scalar(
+                    select(PayrollRecord).where(*template_filters).order_by(PayrollRecord.id)
+                )
+                if template is None:
+                    raise LookupError(
+                        "No existe una importación base para registrar el estado de esa fecha."
+                    )
+                synthetic_hash = hashlib.sha256(
+                    f"STATUS:{cycle_id}:{template.employee_id}:{template.cost_center}:"
+                    f"{template.role_type}:{work_date.isoformat()}".encode("utf-8")
+                ).hexdigest()
+                synthetic_record = PayrollRecord(
+                    cycle_id=cycle_id,
+                    import_id=template.import_id,
+                    employee_id=template.employee_id,
+                    source_type=template.source_type,
+                    cost_center=template.cost_center,
+                    role_type=template.role_type,
+                    source_employee_name=template.source_employee_name,
+                    source_employee_code=template.source_employee_code,
+                    source_row_number=template.source_row_number,
+                    source_row_hash=synthetic_hash,
+                    source_person_slot=template.source_person_slot,
+                    work_date=work_date,
+                    duration_minutes=None,
+                    status=None,
+                )
+                db.add(synthetic_record)
+                db.flush()
+                records = [synthetic_record]
             for record in records:
                 old_value = record.status
                 if old_value == canonical_status:

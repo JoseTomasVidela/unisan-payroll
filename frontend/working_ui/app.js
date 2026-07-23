@@ -1470,14 +1470,14 @@ function renderSpreadsheetMarkup(sheetData, allowEdit = false) {
             const blue = row.status || row.totalRow || row.summary ? "blue" : "";
             if (row.status && allowEdit) {
                 const statusOptions = [
-                    "OK",
                     "Licencia",
                     "Vacaciones",
                     "Libre compensatorio",
                     "Descanso",
                     "Feriado",
                     "Inasistencia",
-                    "Sin producción"
+                    "Sin producción",
+                    "OK"
                 ];
                 const currentStatus = String(val || "");
                 html += `<td class="status-head ${holidayClass}"${holidayTitle}>

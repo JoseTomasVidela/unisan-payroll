@@ -889,6 +889,36 @@ def test_daily_status_rejects_unknown_value(client, db_factory):
     assert response.status_code == 400
 
 
+def test_admin_can_set_status_on_date_without_production_record(client, db_factory):
+    driver_id, _ = seed_settlement(db_factory)
+    response = client.post(
+        "/api/settlements/statuses",
+        headers=auth_headers(client),
+        json={
+            "cycle_id": 1,
+            "employee_id": driver_id,
+            "cost_center": "DR",
+            "role_type": "DRIVER",
+            "updates": [{"work_date": "2026-05-24", "status": "Sin producción"}],
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    status = next(item for item in body["statuses"] if item["date"] == "2026-05-24")
+    assert status["status"] == "Sin producción"
+    with db_factory() as db:
+        record = db.scalar(
+            select(PayrollRecord).where(
+                PayrollRecord.employee_id == driver_id,
+                PayrollRecord.work_date == date(2026, 5, 24),
+            )
+        )
+        assert record is not None
+        assert record.status == "Sin producción"
+        assert record.dispatch_flag == Decimal("0")
+        assert record.event_flag == Decimal("0")
+
+
 def test_update_daily_cell_with_multiple_records_creates_override(client, db_factory):
     driver_id, _ = seed_settlement(db_factory)
 
