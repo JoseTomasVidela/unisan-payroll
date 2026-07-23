@@ -1470,6 +1470,7 @@ function renderSpreadsheetMarkup(sheetData, allowEdit = false) {
             const blue = row.status || row.totalRow || row.summary ? "blue" : "";
             if (row.status && allowEdit) {
                 const statusOptions = [
+                    "OK",
                     "Licencia",
                     "Vacaciones",
                     "Libre compensatorio",

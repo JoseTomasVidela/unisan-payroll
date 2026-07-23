@@ -322,6 +322,8 @@ def test_cycle_start_worked_day_adds_missing_weekdays_even_when_first_day_has_ze
 @pytest.mark.parametrize(
     ("status", "variable_amount", "expected"),
     [
+        ("OK", Decimal("0"), Decimal("0")),
+        ("OK", Decimal("3"), Decimal("1")),
         ("Licencia", Decimal("5"), Decimal("0")),
         ("Vacaciones", Decimal("5"), Decimal("0")),
         ("Libre compensatorio", Decimal("5"), Decimal("0")),

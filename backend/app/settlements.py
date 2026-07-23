@@ -67,6 +67,7 @@ WORKED_DAY_ONE_STATUSES = {
     "inasistencia",
 }
 EDITABLE_STATUSES = {
+    "ok": "OK",
     "licencia": "Licencia",
     "vacaciones": "Vacaciones",
     "libre compensatorio": "Libre compensatorio",
