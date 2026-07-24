@@ -315,6 +315,10 @@ class SettlementEngine:
             worked_day=worked_day,
             cycle_start_date=cycle.start_date,
         )
+        self._apply_cycle_end_worked_day_offset(
+            worked_day=worked_day,
+            cycle_end_date=cycle.end_date,
+        )
         return self._response_payload(
             db=db,
             employee=employee,
@@ -463,6 +467,10 @@ class SettlementEngine:
         self._apply_cycle_start_worked_day_offset(
             worked_day=worked_day,
             cycle_start_date=cycle.start_date,
+        )
+        self._apply_cycle_end_worked_day_offset(
+            worked_day=worked_day,
+            cycle_end_date=cycle.end_date,
         )
         return self._response_payload(
             db=db,
@@ -971,6 +979,22 @@ class SettlementEngine:
         if weekday_offset <= 0:
             return
         worked_day[cycle_start_date] = worked_day[cycle_start_date] + Decimal(weekday_offset)
+
+    @staticmethod
+    def _apply_cycle_end_worked_day_offset(
+        *,
+        worked_day: dict[date, Decimal],
+        cycle_end_date: date,
+    ) -> None:
+        if cycle_end_date not in worked_day:
+            return
+        weekday = cycle_end_date.weekday()
+        if weekday >= 4:
+            return
+        missing_days_until_friday = 4 - weekday
+        worked_day[cycle_end_date] = (
+            worked_day[cycle_end_date] + Decimal(missing_days_until_friday)
+        )
 
     @staticmethod
     def _calculated_row(

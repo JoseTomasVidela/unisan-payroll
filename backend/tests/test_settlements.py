@@ -344,6 +344,27 @@ def test_worked_day_value_matches_status_rules(status, variable_amount, expected
     )
 
 
+@pytest.mark.parametrize(
+    ("cycle_end_date", "expected"),
+    [
+        (date(2026, 7, 20), Decimal("5")),  # lunes: 1 + 4
+        (date(2026, 7, 21), Decimal("4")),  # martes: 1 + 3
+        (date(2026, 7, 22), Decimal("3")),  # miercoles: 1 + 2
+        (date(2026, 7, 23), Decimal("2")),  # jueves: 1 + 1
+        (date(2026, 7, 24), Decimal("1")),  # viernes: sin ajuste
+        (date(2026, 7, 25), Decimal("1")),  # sabado: sin ajuste
+        (date(2026, 7, 26), Decimal("1")),  # domingo: sin ajuste
+    ],
+)
+def test_cycle_end_adds_missing_weekdays_until_friday(cycle_end_date, expected):
+    worked_day = {cycle_end_date: Decimal("1")}
+    SettlementEngine._apply_cycle_end_worked_day_offset(
+        worked_day=worked_day,
+        cycle_end_date=cycle_end_date,
+    )
+    assert worked_day[cycle_end_date] == expected
+
+
 def test_settlement_production_total_includes_manual_adjustments(client, db_factory):
     driver_id, _ = seed_settlement(db_factory)
     with db_factory() as db:
