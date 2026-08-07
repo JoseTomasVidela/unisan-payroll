@@ -40,6 +40,7 @@ def test_workers_list_groups_same_name_and_admin_can_update_contract_and_contact
             "rut": None,
             "email": None,
             "cargo": None,
+            "cost_center": None,
         }
     ]
 
@@ -52,12 +53,14 @@ def test_workers_list_groups_same_name_and_admin_can_update_contract_and_contact
             "rut": "12.345.678-9",
             "email": "alejandro@unisan.cl",
             "cargo": "Chofer",
+            "cost_center": "DR",
         },
     )
     assert updated.status_code == 200
     assert updated.json()["rut"] == "12.345.678-9"
     assert updated.json()["email"] == "alejandro@unisan.cl"
     assert updated.json()["cargo"] == "Chofer"
+    assert updated.json()["cost_center"] == "DR"
     with db_factory() as db:
         employees = db.scalars(
             select(Employee).where(Employee.employee_name == "Alejandro Escobar").order_by(Employee.id)
@@ -69,6 +72,44 @@ def test_workers_list_groups_same_name_and_admin_can_update_contract_and_contact
             "alejandro@unisan.cl",
         ]
         assert [employee.cargo for employee in employees] == ["Chofer", "Chofer"]
+        assert [employee.cost_center for employee in employees] == ["DR", "DR"]
+
+
+def test_admin_can_create_worker_with_services_cost_center(client, db_factory):
+    response = client.post(
+        "/api/workers",
+        headers=admin_headers(client),
+        json={
+            "employee_name": "Trabajador Servicios",
+            "cost_center": "SERVICES",
+            "contract_type": "NEW",
+            "rut": "11.111.111-1",
+            "email": "servicios@unisan.cl",
+            "cargo": "Auxiliar",
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["cost_center"] == "SERVICES"
+    with db_factory() as db:
+        worker = db.scalar(
+            select(Employee).where(Employee.employee_name == "Trabajador Servicios")
+        )
+        assert worker.cost_center == "SERVICES"
+
+
+def test_create_worker_requires_valid_cost_center(client):
+    missing = client.post(
+        "/api/workers",
+        headers=admin_headers(client),
+        json={"employee_name": "Sin Centro"},
+    )
+    invalid = client.post(
+        "/api/workers",
+        headers=admin_headers(client),
+        json={"employee_name": "Centro Invalido", "cost_center": "OTRO"},
+    )
+    assert missing.status_code == 422
+    assert invalid.status_code == 422
 
 
 def test_workers_list_prefers_full_name_when_available(client, db_factory):
@@ -90,19 +131,21 @@ def test_workers_list_prefers_full_name_when_available(client, db_factory):
     assert listed.json()[0]["employee_name"] == "Alejandro Antonio Escobar Osorio"
 
 
-def test_user_cannot_edit_workers(client):
+def test_rrhh_can_create_workers(client):
     response = client.post(
         "/api/workers",
         headers=user_headers(client),
         json={
             "employee_name": "Nuevo Trabajador",
+            "cost_center": "DR",
             "contract_type": "NEW",
             "rut": "11.111.111-1",
             "email": "nuevo@unisan.cl",
             "cargo": "Cargo prueba",
         },
     )
-    assert response.status_code == 403
+    assert response.status_code == 201
+    assert response.json()["cost_center"] == "DR"
 
 
 def test_admin_can_delete_worker_without_historical_records(client, db_factory):

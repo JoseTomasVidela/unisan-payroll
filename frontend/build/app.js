@@ -3,6 +3,7 @@ const appShell = document.getElementById("app-shell");
 const loginBtn = document.getElementById("login-btn");
 const logoutBtn = document.getElementById("logout-btn");
 const toggleSidebar = document.getElementById("toggle-sidebar");
+const topUserName = document.getElementById("top-user-name");
 
 const views = document.querySelectorAll(".view");
 const navItems = document.querySelectorAll(".nav-item[data-view]");
@@ -23,6 +24,7 @@ const newUserBtn = document.getElementById("new-user-btn");
 const cancelUserBtn = document.getElementById("cancel-user-btn");
 const userForm = document.getElementById("user-form");
 const usersNav = document.getElementById("users-nav");
+const auditNav = document.getElementById("audit-nav");
 const ratesNav = document.getElementById("rates-nav");
 const workersNav = document.getElementById("workers-nav");
 const usersTableBody = document.getElementById("users-table-body");
@@ -32,6 +34,22 @@ const userUsername = document.getElementById("user-username");
 const userPassword = document.getElementById("user-password");
 const userRole = document.getElementById("user-role");
 const userActive = document.getElementById("user-active");
+const userPasswordModal = document.getElementById("user-password-modal");
+const userPasswordResetDescription = document.getElementById("user-password-reset-description");
+const editUserFullName = document.getElementById("edit-user-full-name");
+const editUserUsername = document.getElementById("edit-user-username");
+const editUserRole = document.getElementById("edit-user-role");
+const editUserActive = document.getElementById("edit-user-active");
+const userNewPassword = document.getElementById("user-new-password");
+const userConfirmPassword = document.getElementById("user-confirm-password");
+const cancelUserPasswordBtn = document.getElementById("cancel-user-password-btn");
+const saveUserPasswordBtn = document.getElementById("save-user-password-btn");
+const saveUserChangesBtn = document.getElementById("save-user-changes-btn");
+const deleteUserBtn = document.getElementById("delete-user-btn");
+const auditDate = document.getElementById("audit-date");
+const auditSearchBtn = document.getElementById("audit-search-btn");
+const auditExportBtn = document.getElementById("audit-export-btn");
+const auditTableBody = document.getElementById("audit-table-body");
 const loginUsername = document.getElementById("login-username");
 const loginPassword = document.getElementById("login-password");
 const loginRemember = document.getElementById("login-remember");
@@ -45,6 +63,7 @@ const servicesImportBtn = document.getElementById("services-import-btn");
 const servicesImportSelected = document.getElementById("services-import-selected");
 const servicesImportCard = servicesImportFile.closest(".upload-card");
 const importsTableBody = document.getElementById("imports-table-body");
+const operationsEditLockBtn = document.getElementById("operations-edit-lock-btn");
 const drImportPanel = document.getElementById("dr-import-panel");
 const servicesImportPanel = document.getElementById("services-import-panel");
 const importsHistoryPanel = document.getElementById("imports-history-panel");
@@ -52,7 +71,6 @@ const holidayCalendar = document.getElementById("holiday-calendar");
 const holidayMonthLabel = document.getElementById("holiday-month-label");
 const holidayPrevMonthBtn = document.getElementById("holiday-prev-month-btn");
 const holidayNextMonthBtn = document.getElementById("holiday-next-month-btn");
-const holidayNewBtn = document.getElementById("holiday-new-btn");
 const liquidationCycle = document.getElementById("liquidation-cycle");
 const liquidationEmployee = document.getElementById("liquidation-employee");
 const settlementEmployeeName = document.getElementById("settlement-employee-name");
@@ -68,7 +86,9 @@ const searchSaveBtn = document.getElementById("search-save-btn");
 const searchCancelEditBtn = document.getElementById("search-cancel-edit-btn");
 const searchExportExcelBtn = document.getElementById("search-export-excel-btn");
 const searchExportPdfBtn = document.getElementById("search-export-pdf-btn");
-const searchEmailBtn = document.getElementById("search-email-btn");
+const searchEmailMenu = document.getElementById("search-email-menu");
+const searchEmailSheetBtn = document.getElementById("search-email-sheet-btn");
+const searchEmailSettlementBtn = document.getElementById("search-email-settlement-btn");
 const searchSoftlandBtn = document.getElementById("search-softland-btn");
 const searchResultTitle = document.getElementById("search-result-title");
 const searchSettlementEmployeeName = document.getElementById("search-settlement-employee-name");
@@ -80,11 +100,28 @@ const searchSingleEditBtn = document.getElementById("search-single-edit-btn");
 const searchSingleAdjustmentsBtn = document.getElementById("search-single-adjustments-btn");
 const liquidationExportExcelBtn = document.getElementById("liquidation-export-excel-btn");
 const liquidationExportPdfBtn = document.getElementById("liquidation-export-pdf-btn");
-const liquidationEmailBtn = document.getElementById("liquidation-email-btn");
+const liquidationEmailMenu = document.getElementById("liquidation-email-menu");
+const liquidationEmailSheetBtn = document.getElementById("liquidation-email-sheet-btn");
+const liquidationEmailSettlementBtn = document.getElementById("liquidation-email-settlement-btn");
 const liquidationSoftlandBtn = document.getElementById("liquidation-softland-btn");
+const softlandExportModal = document.getElementById("softland-export-modal");
+const softlandExportCycle = document.getElementById("softland-export-cycle");
+const softlandExportCancelBtn = document.getElementById("softland-export-cancel-btn");
+const softlandExportConfirmBtn = document.getElementById("softland-export-confirm-btn");
 const ratesCycle = document.getElementById("rates-cycle");
 const ratesTableBody = document.getElementById("rates-table-body");
-const ratesTabs = document.getElementById("rates-tabs");
+const ratesContext = document.getElementById("rates-context");
+const ipcAdjustmentBtn = document.getElementById("ipc-adjustment-btn");
+const ipcModal = document.getElementById("ipc-modal");
+const ipcPercentage = document.getElementById("ipc-percentage");
+const ipcCycle = document.getElementById("ipc-cycle");
+const ipcAddBtn = document.getElementById("ipc-add-btn");
+const ipcCancelBtn = document.getElementById("ipc-cancel-btn");
+const ipcHistory = document.getElementById("ipc-history");
+const ipcConfirmModal = document.getElementById("ipc-confirm-modal");
+const ipcConfirmMessage = document.getElementById("ipc-confirm-message");
+const ipcConfirmNo = document.getElementById("ipc-confirm-no");
+const ipcConfirmYes = document.getElementById("ipc-confirm-yes");
 const rateModal = document.getElementById("rate-modal");
 const rateModalConcept = document.getElementById("rate-modal-concept");
 const rateModalCurrent = document.getElementById("rate-modal-current");
@@ -97,6 +134,7 @@ const newWorkerBtn = document.getElementById("new-worker-btn");
 const workerModal = document.getElementById("worker-modal");
 const workerName = document.getElementById("worker-name");
 const workerContract = document.getElementById("worker-contract");
+const workerCostCenter = document.getElementById("worker-cost-center");
 const workerRut = document.getElementById("worker-rut");
 const workerEmail = document.getElementById("worker-email");
 const workerCargo = document.getElementById("worker-cargo");
@@ -143,6 +181,8 @@ let currentUser = null;
 let currentContext = null;
 let currentView = "search";
 let currentRatesContext = "dr-driver-old";
+let editingIpcAdjustmentId = null;
+let ipcAdjustments = [];
 let cyclesCache = [];
 let currentRateRow = null;
 let editingWorkerId = null;
@@ -150,7 +190,10 @@ let activeSheetMode = "context";
 let activeSheetContainer = spreadsheet;
 let activeSheetEmployeeName = settlementEmployeeName;
 let activeSheetCycleName = settlementCycleName;
+let activeSheetEmployeeRut = "";
 let activeSheetContext = null;
+let passwordResetUserId = null;
+let usersCache = [];
 let manualAdjustments = [];
 let selectedAdjustmentId = null;
 let originalManualAdjustments = [];
@@ -158,10 +201,15 @@ let deletedAdjustmentIds = [];
 let nextTemporaryAdjustmentId = -1;
 let contextEmployeesCache = [];
 let searchEmployeesCache = [];
+let searchEmployeeCostCenterFilter = "ALL";
 let holidayMonthCursor = new Date();
 holidayMonthCursor = new Date(holidayMonthCursor.getFullYear(), holidayMonthCursor.getMonth(), 1);
 let holidayEntries = [];
 let editingHolidayId = null;
+let operationsEditingLocked = true;
+let operationsEditLockCanControl = false;
+let operationsEditLockPollTimer = null;
+let operationsEditLockRefreshPromise = null;
 const configuredApiBaseUrl = window.__PAYROLL_CONFIG__?.apiBaseUrl?.trim();
 const defaultApiBaseUrl = ["127.0.0.1", "localhost"].includes(window.location.hostname)
     ? "http://127.0.0.1:8010/api"
@@ -172,12 +220,87 @@ const rememberedUsernameKey = "payroll_remembered_username";
 const adjustmentTypeLabels = {
     VACATION: "Vacaciones",
     BONUS: "Bono",
+    VACATION_BONUS: "Bono Vacaciones",
+    PRODUCTION_BONUS: "Bono Producción",
+    EVENT_BONUS: "Bono Evento",
     MANUAL_ADJUSTMENT: "Ajuste manual"
 };
 
 
 function hasPermission(permission) {
+    if (
+        permission === "payroll.edit"
+        && operationsEditingLocked
+    ) {
+        return false;
+    }
     return currentUser?.permissions.includes(permission);
+}
+
+function renderOperationsEditLock(lockState) {
+    const wasLocked = operationsEditingLocked;
+    operationsEditingLocked = Boolean(lockState.locked);
+    const canControl = Boolean(lockState.can_control);
+    operationsEditLockCanControl = canControl;
+    const stateLabel = operationsEditingLocked
+        ? "Planillas bloqueadas"
+        : "Planillas habilitadas para edición";
+    const actionLabel = operationsEditingLocked ? "Abrir candado" : "Cerrar candado";
+    operationsEditLockBtn.classList.toggle("lock-closed", operationsEditingLocked);
+    operationsEditLockBtn.classList.toggle("lock-open", !operationsEditingLocked);
+    operationsEditLockBtn.classList.toggle("lock-readonly", !canControl);
+    operationsEditLockBtn.title = canControl ? `${stateLabel}. ${actionLabel}.` : stateLabel;
+    operationsEditLockBtn.setAttribute("aria-label", operationsEditLockBtn.title);
+    operationsEditLockBtn.setAttribute("aria-disabled", String(!canControl));
+    if (!wasLocked && operationsEditingLocked) {
+        cancelActivePlanillaEditing();
+    }
+    updateContextActionState();
+    updateSearchActionState();
+}
+
+async function loadOperationsEditLock() {
+    if (operationsEditLockRefreshPromise) return operationsEditLockRefreshPromise;
+    operationsEditLockRefreshPromise = apiRequest("/settings/operations-edit-lock")
+        .then(lockState => {
+            renderOperationsEditLock(lockState);
+            return lockState;
+        })
+        .finally(() => {
+            operationsEditLockRefreshPromise = null;
+        });
+    return operationsEditLockRefreshPromise;
+}
+
+function startOperationsEditLockPolling() {
+    if (operationsEditLockPollTimer) clearInterval(operationsEditLockPollTimer);
+    operationsEditLockPollTimer = setInterval(() => {
+        if (!currentUser) return;
+        loadOperationsEditLock().catch(() => {});
+    }, 1000);
+}
+
+function stopOperationsEditLockPolling() {
+    if (operationsEditLockPollTimer) clearInterval(operationsEditLockPollTimer);
+    operationsEditLockPollTimer = null;
+}
+
+function cancelActivePlanillaEditing() {
+    const wasEditing = editMode
+        || !searchEditModal.classList.contains("hidden")
+        || !adjustmentsModal.classList.contains("hidden")
+        || !modal.classList.contains("hidden");
+    editMode = false;
+    modal.classList.add("hidden");
+    closeSearchEditModal();
+    closeAdjustmentsModal();
+    closeAddActivityModal();
+    searchSaveBtn.classList.add("hidden");
+    searchCancelEditBtn.classList.add("hidden");
+    if (activeSheetContainer) renderSpreadsheet(activeSheetContainer);
+    if (wasEditing) {
+        alert("El candado fue cerrado. La edición actual se canceló sin guardar cambios.");
+    }
 }
 
 function escapeHtml(value) {
@@ -440,6 +563,7 @@ async function refreshDisplayedSettlementsForHolidayChange() {
 }
 
 async function loadDashboard() {
+    await loadOperationsEditLock();
     const canImport = hasPermission("payroll.import");
     drImportPanel?.classList.toggle("hidden", !canImport);
     servicesImportPanel?.classList.toggle("hidden", !canImport);
@@ -467,6 +591,28 @@ async function loadDashboard() {
     }
     await loadHolidayCalendar();
 }
+
+operationsEditLockBtn?.addEventListener("click", async () => {
+    if (!operationsEditLockCanControl) return;
+    const nextLocked = !operationsEditingLocked;
+    const action = nextLocked ? "cerrar" : "abrir";
+    if (!confirm(`¿Desea ${action} el candado de edición de planillas?`)) return;
+    operationsEditLockBtn.disabled = true;
+    try {
+        const lockState = await apiRequest("/settings/operations-edit-lock", {
+            method: "PUT",
+            body: JSON.stringify({locked: nextLocked})
+        });
+        renderOperationsEditLock(lockState);
+        alert(nextLocked
+            ? "Las planillas quedaron bloqueadas para todos los usuarios."
+            : "Las planillas quedaron habilitadas para edición.");
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        operationsEditLockBtn.disabled = false;
+    }
+});
 
 importsTableBody?.addEventListener("click", async event => {
     const button = event.target.closest(".delete-import-cycle-btn");
@@ -501,8 +647,10 @@ async function loadCycleDropdowns() {
         `<option value="${cycle.id}">${escapeHtml(cycle.cycle_name)}</option>`
     ).join("");
     liquidationCycle.innerHTML = options;
+    softlandExportCycle.innerHTML = options;
     ratesCycle.innerHTML = options;
     rateModalCycle.innerHTML = options;
+    ipcCycle.innerHTML = options;
     selectedSearchCycleIds = selectedSearchCycleIds.filter(cycleId =>
         cyclesCache.some(cycle => Number(cycle.id) === Number(cycleId))
     );
@@ -591,20 +739,30 @@ async function runImport(sourceType, fileInput, button, confirmed = false) {
 
 function applyPermissions(user) {
     currentUser = user;
+    topUserName.textContent = user.full_name;
     document.querySelector(".profile-text strong").textContent = user.full_name;
     document.querySelector(".profile-text span").textContent = user.role;
+    const nameParts = String(user.full_name || user.username || "")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+    const initials = nameParts.length > 1
+        ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`
+        : (nameParts[0] || "").slice(0, 2);
+    document.querySelectorAll(".avatar").forEach(avatar => {
+        avatar.textContent = initials.toLocaleUpperCase("es-CL");
+    });
     usersNav.classList.toggle("hidden", !hasPermission("users.manage"));
+    auditNav?.classList.toggle("hidden", user.role !== "ADMIN");
     ratesNav?.classList.toggle("hidden", !hasPermission("rates.read"));
     workersNav?.classList.toggle("hidden", !hasPermission("workers.read"));
-    searchEmailBtn?.classList.toggle("hidden", !hasPermission("payroll.email"));
-    liquidationEmailBtn?.classList.toggle("hidden", !hasPermission("payroll.email"));
+    ipcAdjustmentBtn?.classList.toggle("hidden", !hasPermission("rates.edit"));
+    searchEmailMenu?.classList.toggle("hidden", !hasPermission("payroll.email"));
+    liquidationEmailMenu?.classList.toggle("hidden", !hasPermission("payroll.email"));
     searchSoftlandBtn?.classList.toggle("hidden", !hasPermission("payroll.softland"));
     liquidationSoftlandBtn?.classList.toggle("hidden", !hasPermission("payroll.softland"));
     if (newWorkerBtn) {
         newWorkerBtn.classList.toggle("hidden", !hasPermission("workers.edit"));
-    }
-    if (holidayNewBtn) {
-        holidayNewBtn.classList.toggle("hidden", user.role !== "ADMIN");
     }
     searchEditBtn?.classList.add("hidden");
     searchAdjustmentsBtn?.classList.add("hidden");
@@ -614,9 +772,11 @@ function openSession(user) {
     applyPermissions(user);
     loginScreen.classList.add("hidden");
     appShell.classList.remove("hidden");
+    startOperationsEditLockPolling();
 }
 
 function closeSession() {
+    stopOperationsEditLockPolling();
     localStorage.removeItem("payroll_access_token");
     currentUser = null;
     appShell.classList.add("hidden");
@@ -637,21 +797,39 @@ function initializeRememberedLogin() {
 async function loadUsers() {
     if (!hasPermission("users.manage")) return;
     const users = await apiRequest("/users");
+    usersCache = users;
     usersTableBody.innerHTML = users.map(user => `
         <tr>
             <td>${escapeHtml(user.username)}</td>
             <td>${escapeHtml(user.full_name)}</td>
             <td><span class="tag ${user.role === "ADMIN" ? "green-tag" : "blue-tag"}">${user.role}</span></td>
             <td>${user.active ? "Activo" : "Inactivo"}</td>
-            <td></td>
+            <td><button type="button" class="btn secondary edit-user-btn" data-user-id="${user.id}">Editar Usuario</button></td>
         </tr>
     `).join("");
+}
+
+function closeUserPasswordModal() {
+    passwordResetUserId = null;
+    editUserFullName.value = "";
+    editUserUsername.value = "";
+    userNewPassword.value = "";
+    userConfirmPassword.value = "";
+    userPasswordModal.classList.add("hidden");
+}
+
+function validPassword(password) {
+    return password.length >= 6
+        && /[A-ZÁÉÍÓÚÜÑ]/.test(password)
+        && /[a-záéíóúüñ]/.test(password)
+        && /[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]/.test(password);
 }
 
 function resetWorkerForm() {
     editingWorkerId = null;
     workerName.value = "";
     workerContract.value = "";
+    workerCostCenter.value = "";
     workerRut.value = "";
     workerEmail.value = "";
     workerCargo.value = "";
@@ -659,9 +837,10 @@ function resetWorkerForm() {
     workerModal.classList.add("hidden");
 }
 
-function openWorkerModal({ name = "", contractType = "", rut = "", email = "", cargo = "", readOnlyName = false } = {}) {
+function openWorkerModal({ name = "", contractType = "", costCenter = "", rut = "", email = "", cargo = "", readOnlyName = false } = {}) {
     workerName.value = name;
     workerContract.value = contractType || "";
+    workerCostCenter.value = costCenter || "";
     workerRut.value = rut || "";
     workerEmail.value = email || "";
     workerCargo.value = cargo || "";
@@ -675,7 +854,7 @@ function selectedSearchEmployeeName() {
 
 function resetAdjustmentForm() {
     selectedAdjustmentId = null;
-    adjustmentType.value = "BONUS";
+    adjustmentType.value = "VACATION_BONUS";
     adjustmentUnits.value = "";
     adjustmentAmount.value = "";
     adjustmentObservations.value = "";
@@ -696,6 +875,7 @@ function renderAdjustmentsTable() {
                 <td>${escapeHtml(adjustmentTypeLabel(item.adjustment_type))}</td>
                 <td>${item.units === null ? "" : unitValue(item.units)}</td>
                 <td>${money(item.amount)}</td>
+                <td>${escapeHtml(item.observations || "")}</td>
                 <td>Activo</td>
                 <td>
                     <div class="actions left">
@@ -707,7 +887,7 @@ function renderAdjustmentsTable() {
                 </td>
             </tr>
         `).join("")
-        : '<tr><td colspan="5">No hay ajustes registrados.</td></tr>';
+        : '<tr><td colspan="6">No hay ajustes registrados.</td></tr>';
 }
 
 async function loadManualAdjustments() {
@@ -898,6 +1078,7 @@ async function loadWorkers() {
         <tr>
             <td>${escapeHtml(worker.employee_name)}</td>
             <td>${escapeHtml(worker.cargo || "")}</td>
+            <td>${escapeHtml(worker.cost_center === "DR" ? "D&R" : worker.cost_center === "SERVICES" ? "Servicios" : "Sin definir")}</td>
             <td>${escapeHtml(worker.rut || "")}</td>
             <td>${escapeHtml(worker.email || "")}</td>
             <td>${editingWorkerId === worker.id
@@ -915,6 +1096,7 @@ async function loadWorkers() {
                                 data-worker-id="${worker.id}"
                                 data-worker-name="${escapeHtml(worker.employee_name)}"
                                 data-contract-type="${worker.contract_type || ""}"
+                                data-worker-cost-center="${worker.cost_center || ""}"
                                 data-worker-rut="${escapeHtml(worker.rut || "")}"
                                 data-worker-email="${escapeHtml(worker.email || "")}"
                                 data-worker-cargo="${escapeHtml(worker.cargo || "")}">
@@ -1040,8 +1222,9 @@ function updateContextActionState() {
     cancelEditBtn?.classList.toggle("hidden", !editMode || activeSheetMode !== "context");
     liquidationExportExcelBtn.disabled = !hasSelection;
     liquidationExportPdfBtn.disabled = !hasSelection;
-    liquidationEmailBtn.disabled = !hasSingleSelection;
-    liquidationSoftlandBtn.disabled = !hasSelection;
+    liquidationEmailSheetBtn.disabled = !hasSingleSelection;
+    liquidationEmailSettlementBtn.disabled = !hasSingleSelection;
+    liquidationSoftlandBtn.disabled = false;
 }
 
 function settlementCycleDate(columnIndex) {
@@ -1057,6 +1240,7 @@ let editModalCycleId = null;
 let editModalEmployeeId = null;
 let editModalDates = [];
 let editModalRows = [];
+let editModalEmployeeRut = "";
 let editModalContractType = null;
 let addActivityRows = [];
 let selectedAddActivityConceptId = null;
@@ -1088,8 +1272,9 @@ function updateSearchActionState() {
     searchSingleActions?.classList.toggle("hidden", !(single && hasPermission("payroll.edit")));
     searchExportExcelBtn.disabled = !displayedSearchSettlements.length && !single;
     searchExportPdfBtn.disabled = !displayedSearchSettlements.length && !single;
-    searchEmailBtn.disabled = !single;
-    searchSoftlandBtn.disabled = !displayedSearchSettlements.length && !single;
+    searchEmailSheetBtn.disabled = !single;
+    searchEmailSettlementBtn.disabled = !single;
+    searchSoftlandBtn.disabled = false;
 }
 
 function closeSearchDropdowns() {
@@ -1129,10 +1314,13 @@ function renderSearchCycleChecklist() {
 
 function filteredSearchEmployees() {
     const term = searchEmployeeSummary.value.trim().toLocaleLowerCase("es");
-    if (!term) return searchEmployeesCache;
-    return searchEmployeesCache.filter(employee =>
-        employee.employee_name.toLocaleLowerCase("es").includes(term)
-    );
+    return searchEmployeesCache.filter(employee => {
+        const matchesCostCenter = searchEmployeeCostCenterFilter === "ALL"
+            || employee.cost_center === searchEmployeeCostCenterFilter;
+        const matchesTerm = !term
+            || employee.employee_name.toLocaleLowerCase("es").includes(term);
+        return matchesCostCenter && matchesTerm;
+    });
 }
 
 function renderSearchEmployeeChecklist(employees = filteredSearchEmployees()) {
@@ -1148,6 +1336,16 @@ function renderSearchEmployeeChecklist(employees = filteredSearchEmployees()) {
                     ${allVisibleSelected ? "checked" : ""} />
                 <span>Todos</span>
             </label>`,
+            `<label class="checklist-item checklist-item-filter">
+                <input type="checkbox" data-employee-cost-center="DR"
+                    ${searchEmployeeCostCenterFilter === "DR" ? "checked" : ""} />
+                <span>D&amp;R</span>
+            </label>`,
+            `<label class="checklist-item checklist-item-filter">
+                <input type="checkbox" data-employee-cost-center="SERVICES"
+                    ${searchEmployeeCostCenterFilter === "SERVICES" ? "checked" : ""} />
+                <span>Servicios</span>
+            </label>`,
             ...employees.map(employee => `
                 <label class="checklist-item">
                     <input
@@ -1161,7 +1359,10 @@ function renderSearchEmployeeChecklist(employees = filteredSearchEmployees()) {
         ].join("")
         : '<div class="checklist-empty">Seleccione primero uno o más ciclos.</div>';
     if (searchEmployeesCache.length && !employees.length) {
-        searchEmployee.innerHTML = '<div class="checklist-empty">No hay trabajadores para ese filtro.</div>';
+        searchEmployee.insertAdjacentHTML(
+            "beforeend",
+            '<div class="checklist-empty">No hay trabajadores para ese filtro.</div>'
+        );
     }
     const selectedCount = selectedSearchEmployeeIds.length;
     searchEmployeeSummary.placeholder = selectedCount
@@ -1183,6 +1384,7 @@ function clearSettlement() {
     dates = [];
     rows = [];
     activeSheetEmployeeName.textContent = "";
+    activeSheetEmployeeRut = "";
     activeSheetCycleName.textContent = "";
     renderSpreadsheet(activeSheetContainer);
 }
@@ -1214,6 +1416,7 @@ function settlementToSheetData(settlement, contextOverride = null) {
     ];
     return {
         employeeName: settlement.employee.employee_name,
+        employeeRut: settlement.employee.rut || "",
         cycleName: settlement.cycle.cycle_name,
         roleLabel: contextOverride?.roleLabel || activeSheetContext?.roleLabel || "",
         centerLabel: contextOverride?.centerLabel || activeSheetContext?.centerLabel || "",
@@ -1229,6 +1432,7 @@ function closeSearchEditModal() {
     editModalEmployeeId = null;
     editModalDates = [];
     editModalRows = [];
+    editModalEmployeeRut = "";
     editModalContractType = null;
     searchEditSpreadsheet.innerHTML = "";
 }
@@ -1237,6 +1441,7 @@ function renderSearchEditModalSpreadsheet() {
     searchEditSpreadsheet.innerHTML = renderSpreadsheetMarkup(
         {
             employeeName: searchEditEmployeeName.textContent || "",
+            employeeRut: editModalEmployeeRut,
             roleLabel: "Consolidado",
             dates: editModalDates,
             rows: editModalRows
@@ -1263,6 +1468,7 @@ async function openSearchEditModal(cycleId, employeeId) {
     editModalEmployeeId = Number(employeeId);
     editModalDates = sheetData.dates;
     editModalRows = sheetData.rows;
+    editModalEmployeeRut = sheetData.employeeRut;
     editModalContractType = settlement.employee.contract_type || null;
     searchEditEmployeeName.textContent = settlement.employee.employee_name;
     searchEditCycleName.textContent = settlement.cycle.cycle_name;
@@ -1384,7 +1590,7 @@ async function loadAddActivityRows() {
         cycle_id: state.cycleId,
         contract_type: ctx.contractType
     });
-    addActivityRows = await apiRequest(`/rates?${query}`);
+    addActivityRows = await apiRequest(`/settlements/activities?${query}`);
     renderAddActivityRows();
 }
 
@@ -1433,30 +1639,87 @@ function addSelectedActivityToEditModal() {
 
 function renderSpreadsheetMarkup(sheetData, allowEdit = false) {
     const employeeName = sheetData.employeeName || "";
+    const employeeRut = sheetData.employeeRut || "";
     const roleLabel = sheetData.roleLabel || "";
+    const statusRowIndex = sheetData.rows.findIndex(row => row.status);
+    const statusRow = statusRowIndex >= 0 ? sheetData.rows[statusRowIndex] : null;
+    const isWeekendOrHoliday = d => d[4]
+        || ["sab", "dom"].includes(String(d[1]).toLowerCase());
+    const dateColorClass = (d, cellType) => isWeekendOrHoliday(d)
+        ? `holiday-${cellType} weekend-${cellType}`
+        : !d[2]
+            ? `missing-status-${cellType}`
+            : "";
+    const statusOptions = [
+        "Licencia",
+        "Vacaciones",
+        "Libre compensatorio",
+        "Descanso",
+        "Feriado",
+        "Inasistencia",
+        "Sin producción",
+        "OK"
+    ];
+    const statusCells = statusRow
+        ? sheetData.dates.map((d, cIndex) => {
+            const value = statusRow.values ? statusRow.values[cIndex] ?? "" : "";
+            const currentStatus = String(value || "");
+            const holidayClass = dateColorClass(d, "head");
+            const holidayTitle = d[4] && d[5]?.length
+                ? ` title="${escapeHtml(d[5].join(", "))}"`
+                : "";
+            if (!allowEdit) {
+                return `<th class="status-head ${holidayClass}"${holidayTitle}><span class="vertical-label">${escapeHtml(currentStatus)}</span></th>`;
+            }
+            return `<th class="status-head ${holidayClass}"${holidayTitle}>
+                <select class="status-input" data-row="${statusRowIndex}" data-col="${cIndex}">
+                    ${!currentStatus ? '<option value="" selected disabled>Seleccione estado</option>' : ""}
+                    ${currentStatus && !statusOptions.includes(currentStatus)
+                        ? `<option value="${escapeHtml(currentStatus)}" selected disabled>${escapeHtml(currentStatus)}</option>`
+                        : ""}
+                    ${statusOptions.map(option => `<option value="${escapeHtml(option)}" ${option === currentStatus ? "selected" : ""}>${escapeHtml(option)}</option>`).join("")}
+                </select>
+            </th>`;
+        }).join("")
+        : "";
     let html = `<table class="sheet-table"><thead>
         <tr>
-            <th class="fixed">${escapeHtml(employeeName)}</th>
-            <th class="units">${escapeHtml(employeeName)}<br>Unidades</th>
-            <th class="rate">Tarifa</th>
-            <th class="total">${escapeHtml(roleLabel)}<br>Total $</th>
-            ${sheetData.dates.map(d => `<th class="date-head ${d[4] ? "holiday-head" : ""}"${d[4] && d[5]?.length ? ` title="${escapeHtml(d[5].join(", "))}"` : ""}>${d[0]}</th>`).join("")}
+            <th class="fixed worker-heading" rowspan="2">
+                <span>${escapeHtml(employeeName)}</span>
+                ${employeeRut ? `<small>RUT: ${escapeHtml(employeeRut)}</small>` : ""}
+            </th>
+            <th class="units" rowspan="2">Unidades</th>
+            <th class="rate" rowspan="2">Tarifa</th>
+            <th class="total" rowspan="2">${escapeHtml(roleLabel)}<br>Total $</th>
+            ${sheetData.dates.map(d => `<th class="date-head ${dateColorClass(d, "head")}"${d[4] && d[5]?.length ? ` title="${escapeHtml(d[5].join(", "))}"` : ""}><span class="vertical-label">${d[0]}</span></th>`).join("")}
         </tr>
         <tr>
-            <th class="fixed">Actividad</th>
+            ${sheetData.dates.map(d => `<th class="date-head ${dateColorClass(d, "head")}"${d[4] && d[5]?.length ? ` title="${escapeHtml(d[5].join(", "))}"` : ""}><span class="vertical-label">${d[1]}</span></th>`).join("")}
+        </tr>
+        ${statusRow ? `<tr class="status-row">
+            <th class="fixed">${escapeHtml(statusRow.label)}</th>
             <th class="units"></th>
             <th class="rate"></th>
             <th class="total"></th>
-            ${sheetData.dates.map(d => `<th class="date-head ${d[4] ? "holiday-head" : ""}"${d[4] && d[5]?.length ? ` title="${escapeHtml(d[5].join(", "))}"` : ""}>${d[1]}</th>`).join("")}
-        </tr>
+            ${statusCells}
+        </tr>` : ""}
     </thead><tbody>`;
 
     sheetData.rows.forEach((row, rIndex) => {
+        if (row.status) return;
         if (row.empty) {
-            html += `<tr><td class="fixed"></td><td class="units"></td><td class="rate"></td><td class="total"></td>${sheetData.dates.map(()=>"<td></td>").join("")}</tr>`;
+            html += `<tr><td class="fixed"></td><td class="units"></td><td class="rate"></td><td class="total"></td>${sheetData.dates.map(d => `<td class="${dateColorClass(d, "cell")}"></td>`).join("")}</tr>`;
             return;
         }
-        const cls = row.section ? "section" : row.totalRow ? "total-row" : row.summary ? "summary-row" : "";
+        const cls = row.status
+            ? "status-row"
+            : row.section
+                ? "section"
+                : row.totalRow
+                    ? "total-row"
+                    : row.summary
+                        ? "summary-row"
+                        : "";
         html += `<tr class="${cls}">
             <td class="fixed ${row.section ? "section" : row.totalRow ? "summary-label" : ""}">${row.label}</td>
             <td class="units">${unitValue(row.units)}</td>
@@ -1465,7 +1728,7 @@ function renderSpreadsheetMarkup(sheetData, allowEdit = false) {
 
         sheetData.dates.forEach((d, cIndex) => {
             const val = row.values ? row.values[cIndex] ?? "" : "";
-            const holidayClass = d[4] ? "holiday-cell" : "";
+            const holidayClass = dateColorClass(d, "cell");
             const holidayTitle = d[4] && d[5]?.length ? ` title="${escapeHtml(d[5].join(", "))}"` : "";
             const blue = row.status || row.totalRow || row.summary ? "blue" : "";
             if (row.status && allowEdit) {
@@ -1518,6 +1781,7 @@ function applySettlement(settlement) {
     dates = sheetData.dates;
     rows = sheetData.rows;
     activeSheetEmployeeName.textContent = settlement.employee.employee_name;
+    activeSheetEmployeeRut = settlement.employee.rut || "";
     activeSheetCycleName.textContent = settlement.cycle.cycle_name;
     renderSpreadsheet(activeSheetContainer);
 }
@@ -1827,6 +2091,7 @@ function renderSpreadsheet(container) {
     container.innerHTML = renderSpreadsheetMarkup(
         {
             employeeName: activeSheetEmployeeName.textContent || "",
+            employeeRut: activeSheetEmployeeRut,
             roleLabel: activeSheetContext?.roleLabel || "",
             dates,
             rows
@@ -1897,6 +2162,17 @@ function setView(viewId) {
         });
         searchResultTitle.textContent = "Liquidacion";
         renderSpreadsheet(spreadsheetSearch);
+        return;
+    }
+
+    if (viewId === "audit") {
+        if (currentUser?.role !== "ADMIN") return;
+        currentContext = null;
+        document.getElementById("audit").classList.add("active");
+        title.textContent = "Auditoría";
+        breadcrumb.textContent = "Auditoría";
+        auditTableBody.innerHTML = "";
+        auditExportBtn.disabled = true;
         return;
     }
 
@@ -2178,6 +2454,7 @@ confirmSave.addEventListener("click", async () => {
         renderSpreadsheet(activeSheetContainer);
         return;
     }
+
     confirmSave.disabled = true;
     try {
         const isContextSave = activeSheetMode === "context";
@@ -2258,7 +2535,131 @@ adjustmentsTableBody?.addEventListener("click", event => {
 adjustmentAddBtn?.addEventListener("click", upsertAdjustmentDraft);
 adjustmentSaveBtn?.addEventListener("click", saveAdjustmentDrafts);
 
+auditSearchBtn?.addEventListener("click", async () => {
+    if (!auditDate.value) {
+        alert("Seleccione una fecha a consultar.");
+        return;
+    }
+    auditSearchBtn.disabled = true;
+    try {
+        const entries = await apiRequest(`/audit?audit_date=${encodeURIComponent(auditDate.value)}`);
+        auditTableBody.innerHTML = entries.map(entry => `
+            <tr>
+                <td>${escapeHtml(new Date(entry.action_date).toLocaleString("es-CL"))}</td>
+                <td>${escapeHtml(entry.username)}</td>
+                <td>${escapeHtml(entry.action)}</td>
+            </tr>
+        `).join("");
+        auditExportBtn.disabled = false;
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        auditSearchBtn.disabled = false;
+    }
+});
+
+auditExportBtn?.addEventListener("click", async () => {
+    if (!auditDate.value) return;
+    auditExportBtn.disabled = true;
+    try {
+        await downloadApiFile(`/audit/export?audit_date=${encodeURIComponent(auditDate.value)}`);
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        auditExportBtn.disabled = false;
+    }
+});
+
 newUserBtn.addEventListener("click", () => userForm.classList.remove("hidden"));
+usersTableBody.addEventListener("click", event => {
+    const button = event.target.closest(".edit-user-btn");
+    if (!button) return;
+    const user = usersCache.find(item => Number(item.id) === Number(button.dataset.userId));
+    if (!user) return;
+    passwordResetUserId = Number(user.id);
+    editUserFullName.value = user.full_name;
+    editUserUsername.value = user.username;
+    editUserRole.value = user.role;
+    editUserActive.value = String(user.active);
+    userPasswordResetDescription.textContent = `Modifique la información y los accesos de ${user.full_name}.`;
+    deleteUserBtn.classList.toggle("hidden", Number(currentUser?.id) === Number(user.id));
+    userPasswordModal.classList.remove("hidden");
+    editUserFullName.focus();
+});
+cancelUserPasswordBtn.addEventListener("click", closeUserPasswordModal);
+saveUserChangesBtn.addEventListener("click", async () => {
+    const payload = {
+        full_name: editUserFullName.value.trim(),
+        username: editUserUsername.value.trim(),
+        role_name: editUserRole.value,
+        active: editUserActive.value === "true"
+    };
+    if (!payload.full_name) {
+        alert("Ingrese el nombre del usuario.");
+        return;
+    }
+    if (payload.username.length < 3) {
+        alert("El usuario debe tener al menos 3 caracteres.");
+        return;
+    }
+    saveUserChangesBtn.disabled = true;
+    try {
+        const updated = await apiRequest(`/users/${passwordResetUserId}`, {
+            method: "PATCH",
+            body: JSON.stringify(payload)
+        });
+        if (Number(updated.id) === Number(currentUser?.id)) {
+            applyPermissions(updated);
+        }
+        closeUserPasswordModal();
+        await loadUsers();
+        alert("El usuario fue actualizado correctamente.");
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        saveUserChangesBtn.disabled = false;
+    }
+});
+deleteUserBtn.addEventListener("click", async () => {
+    const user = usersCache.find(item => Number(item.id) === Number(passwordResetUserId));
+    if (!user || !confirm(`¿Está seguro que desea eliminar al usuario ${user.username}?`)) return;
+    deleteUserBtn.disabled = true;
+    try {
+        await apiRequest(`/users/${passwordResetUserId}`, { method: "DELETE" });
+        closeUserPasswordModal();
+        await loadUsers();
+        alert("El usuario fue eliminado correctamente.");
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        deleteUserBtn.disabled = false;
+    }
+});
+saveUserPasswordBtn.addEventListener("click", async () => {
+    const password = userNewPassword.value;
+    if (!validPassword(password)) {
+        alert("La contraseña debe tener al menos 6 caracteres e incluir mayúscula, minúscula y un carácter especial.");
+        return;
+    }
+    if (password !== userConfirmPassword.value) {
+        alert("Las contraseñas no coinciden.");
+        return;
+    }
+    saveUserPasswordBtn.disabled = true;
+    try {
+        await apiRequest(`/users/${passwordResetUserId}/password`, {
+            method: "PATCH",
+            body: JSON.stringify({ password })
+        });
+        alert("La contraseña fue restablecida correctamente.");
+        userNewPassword.value = "";
+        userConfirmPassword.value = "";
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        saveUserPasswordBtn.disabled = false;
+    }
+});
 cancelUserBtn.addEventListener("click", () => {
     userForm.classList.add("hidden");
     userFullName.value = "";
@@ -2337,15 +2738,6 @@ holidayPrevMonthBtn?.addEventListener("click", () => {
 holidayNextMonthBtn?.addEventListener("click", () => {
     holidayMonthCursor = new Date(holidayMonthCursor.getFullYear(), holidayMonthCursor.getMonth() + 1, 1);
     loadHolidayCalendar().catch(error => alert(error.message));
-});
-holidayNewBtn?.addEventListener("click", () => {
-    if (currentUser?.role !== "ADMIN") {
-        alert("Solo ADMIN puede editar feriados.");
-        return;
-    }
-    openHolidayModal({
-        holiday_date: toIsoDate(new Date(holidayMonthCursor.getFullYear(), holidayMonthCursor.getMonth(), 1))
-    });
 });
 holidayCalendar?.addEventListener("click", event => {
     const dayButton = event.target.closest("[data-holiday-date]");
@@ -2456,6 +2848,13 @@ searchCycle.addEventListener("input", event => {
 });
 
 searchEmployee.addEventListener("input", event => {
+    if (event.target.matches("input[data-employee-cost-center]")) {
+        const requestedFilter = event.target.dataset.employeeCostCenter;
+        searchEmployeeCostCenterFilter = event.target.checked ? requestedFilter : "ALL";
+        renderSearchEmployeeChecklist();
+        positionSearchDropdown(searchEmployee, searchEmployeeSummary);
+        return;
+    }
     if (event.target.matches("input[data-select-all-employees]")) {
         const visibleEmployees = filteredSearchEmployees();
         const visibleIds = visibleEmployees.map(employee => Number(employee.id));
@@ -2500,6 +2899,24 @@ document.addEventListener("click", () => {
     closeSearchDropdowns();
 });
 
+document.addEventListener("click", event => {
+    document.querySelectorAll("details.action-menu[open]").forEach(menu => {
+        const selectedOption = event.target.closest(".action-menu-panel button");
+        if (!menu.contains(event.target) || selectedOption?.closest("details.action-menu") === menu) {
+            menu.removeAttribute("open");
+        }
+    });
+});
+
+document.querySelectorAll("details.action-menu").forEach(menu => {
+    menu.addEventListener("toggle", () => {
+        if (!menu.open) return;
+        document.querySelectorAll("details.action-menu[open]").forEach(otherMenu => {
+            if (otherMenu !== menu) otherMenu.removeAttribute("open");
+        });
+    });
+});
+
 window.addEventListener("resize", () => {
     if (!searchCycle.classList.contains("hidden")) {
         positionSearchDropdown(searchCycle, searchCycleSummary);
@@ -2524,15 +2941,94 @@ ratesCycle.addEventListener("change", () => {
     }
 });
 
-ratesTabs.addEventListener("click", event => {
-    const button = event.target.closest("[data-rates-context]");
-    if (!button) return;
-    currentRatesContext = button.dataset.ratesContext;
-    ratesTabs.querySelectorAll(".context-tab").forEach(item =>
-        item.classList.toggle("active", item === button)
-    );
+ratesContext.addEventListener("change", () => {
+    currentRatesContext = ratesContext.value;
     loadRates().catch(error => alert(error.message));
 });
+
+ipcAdjustmentBtn?.addEventListener("click", () => {
+    if (!hasPermission("rates.edit")) return;
+    openIpcModal().catch(error => alert(error.message));
+});
+
+ipcCancelBtn?.addEventListener("click", closeIpcModal);
+
+ipcAddBtn?.addEventListener("click", async () => {
+    if (!hasPermission("rates.edit")) return;
+    if (ipcPercentage.value === "") {
+        alert("Ingrese el porcentaje de variación del IPC.");
+        return;
+    }
+    ipcAddBtn.disabled = true;
+    try {
+        await apiRequest(
+            editingIpcAdjustmentId
+                ? `/rates/ipc-adjustments/${editingIpcAdjustmentId}`
+                : "/rates/ipc-adjustments",
+            {
+                method: editingIpcAdjustmentId ? "PUT" : "POST",
+                body: JSON.stringify({
+                    percentage: ipcPercentage.value,
+                    effective_from_cycle_id: Number(ipcCycle.value)
+                })
+            }
+        );
+        editingIpcAdjustmentId = null;
+        ipcPercentage.value = "";
+        ipcAddBtn.textContent = "Agregar";
+        await loadIpcAdjustments();
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        ipcAddBtn.disabled = false;
+    }
+});
+
+ipcHistory?.addEventListener("click", async event => {
+    const editButton = event.target.closest(".ipc-edit-btn");
+    if (editButton) {
+        editingIpcAdjustmentId = Number(editButton.dataset.ipcId);
+        ipcPercentage.value = editButton.dataset.ipcPercentage;
+        ipcCycle.value = editButton.dataset.ipcCycleId;
+        ipcAddBtn.textContent = "Guardar cambio";
+        return;
+    }
+    const applyButton = event.target.closest(".ipc-apply-btn");
+    if (!applyButton) return;
+    const item = ipcAdjustments.find(row => Number(row.id) === Number(applyButton.dataset.ipcId));
+    const percentage = Number(applyButton.dataset.ipcPercentage).toLocaleString("es-CL", {maximumFractionDigits: 4});
+    const message = item?.status === "DRAFT"
+        ? `¿Está seguro que quiere aplicar variación del IPC de un ${percentage}% a todas las tarifas?`
+        : `¿Está seguro que quiere restaurar todas las tarifas a los valores correspondientes a este ajuste del ${percentage}%?`;
+    if (!await confirmIpcAction(message)) return;
+    applyButton.disabled = true;
+    try {
+        await apiRequest(`/rates/ipc-adjustments/${applyButton.dataset.ipcId}/apply`, {method: "POST"});
+        await Promise.all([loadIpcAdjustments(), loadRates()]);
+        alert(item?.status === "DRAFT" ? "Variación IPC aplicada correctamente." : "Tarifas restauradas correctamente.");
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        applyButton.disabled = false;
+    }
+});
+
+function confirmIpcAction(message) {
+    ipcConfirmMessage.textContent = message;
+    ipcConfirmModal.classList.remove("hidden");
+    return new Promise(resolve => {
+        const finish = result => {
+            ipcConfirmModal.classList.add("hidden");
+            ipcConfirmYes.removeEventListener("click", accept);
+            ipcConfirmNo.removeEventListener("click", reject);
+            resolve(result);
+        };
+        const accept = () => finish(true);
+        const reject = () => finish(false);
+        ipcConfirmYes.addEventListener("click", accept);
+        ipcConfirmNo.addEventListener("click", reject);
+    });
+}
 
 ratesTableBody.addEventListener("click", event => {
     const button = event.target.closest(".edit-rate-btn");
@@ -2610,6 +3106,7 @@ workersTableBody?.addEventListener("click", event => {
         openWorkerModal({
             name: button.dataset.workerName || "",
             contractType: button.dataset.contractType || "",
+            costCenter: button.dataset.workerCostCenter || "",
             rut: button.dataset.workerRut || "",
             email: button.dataset.workerEmail || "",
             cargo: button.dataset.workerCargo || "",
@@ -2657,10 +3154,15 @@ workersTableBody?.addEventListener("click", event => {
 
 saveWorkerBtn?.addEventListener("click", async () => {
     if (!hasPermission("workers.edit")) return;
+    if (!workerCostCenter.value) {
+        alert("Seleccione el Centro de Costo del trabajador.");
+        return;
+    }
     saveWorkerBtn.disabled = true;
     try {
         const payload = {
             employee_name: workerName.value,
+            cost_center: workerCostCenter.value,
             contract_type: workerContract.value || null,
             rut: workerRut.value || null,
             email: workerEmail.value || null,
@@ -2671,6 +3173,7 @@ saveWorkerBtn?.addEventListener("click", async () => {
                 method: "PUT",
                 body: JSON.stringify({
                     contract_type: payload.contract_type,
+                    cost_center: payload.cost_center,
                     rut: payload.rut,
                     email: payload.email,
                     cargo: payload.cargo
@@ -2692,14 +3195,16 @@ saveWorkerBtn?.addEventListener("click", async () => {
 });
 
 searchExportExcelBtn?.addEventListener("click", () => {
+    if (!confirm("¿Exportar la planilla seleccionada en formato Excel?")) return;
     exportSearchSettlement("xlsx").catch(error => alert(error.message));
 });
 
 searchExportPdfBtn?.addEventListener("click", () => {
+    if (!confirm("¿Exportar la liquidación seleccionada en formato PDF?")) return;
     exportSearchSettlement("pdf").catch(error => alert(error.message));
 });
 
-searchEmailBtn?.addEventListener("click", () => {
+async function sendSearchEmail(emailType) {
     if (!hasPermission("payroll.email")) return;
     if (!isSingleSearchSelection()) {
         alert("Seleccione un solo ciclo y un solo trabajador.");
@@ -2708,34 +3213,116 @@ searchEmailBtn?.addEventListener("click", () => {
     const employee = searchEmployeesCache.find(
         item => Number(item.id) === Number(selectedSearchEmployeeIds[0])
     );
-    if (!confirm(`¿Enviar la liquidación de ${employee?.employee_name || "trabajador seleccionado"} al destinatario de prueba (sjorquera@unisan.cl)?`)) return;
-    searchEmailBtn.disabled = true;
-    apiRequest("/email/settlement", {
+    const isSheet = emailType === "SHEET";
+    const recipient = isSheet ? "jose.videla@acsa-tec.cl" : "rrhh@unisan.cl";
+    const action = isSheet ? "Enviar Planilla" : "Enviar Liquidación";
+    if (!confirm(`¿${action} de ${employee?.employee_name || "trabajador seleccionado"} por email a ${recipient}?`)) return;
+    searchEmailSheetBtn.disabled = true;
+    searchEmailSettlementBtn.disabled = true;
+    try {
+        const result = await apiRequest("/email/settlement", {
         method: "POST",
         body: JSON.stringify({
             cycle_id: Number(selectedSearchCycleIds[0]),
-            employee_id: Number(selectedSearchEmployeeIds[0])
+            employee_id: Number(selectedSearchEmployeeIds[0]),
+            email_type: emailType
         })
-    })
-        .then(result => alert(`Liquidación enviada exitosamente a ${result.recipient_name} (${result.recipient}).`))
-        .catch(error => alert(error.message))
-        .finally(() => updateSearchActionState());
-});
+        });
+        alert(`${isSheet ? "Planilla" : "Liquidación"} enviada exitosamente a ${result.recipient_name} (${result.recipient}).`);
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        updateSearchActionState();
+    }
+}
 
-searchSoftlandBtn?.addEventListener("click", () => {
+function renderIpcHistory() {
+    ipcHistory.innerHTML = ipcAdjustments.length
+        ? ipcAdjustments.map(item => `
+            <div class="ipc-history-item">
+                <div>
+                    <strong>${new Date(item.created_at).toLocaleDateString("es-CL")}</strong>
+                    <span>${Number(item.percentage).toLocaleString("es-CL", {maximumFractionDigits: 4})}%</span>
+                    <span>Desde: ${escapeHtml(item.effective_from_cycle_name)}</span>
+                    <small>${item.status === "DRAFT" ? "Pendiente" : "Aplicado"}</small>
+                </div>
+                <div class="actions left">
+                    <button class="btn primary small-btn ipc-apply-btn" data-ipc-id="${item.id}" data-ipc-percentage="${item.percentage}">Aplicar</button>
+                    ${item.status === "DRAFT" ? `<button class="btn secondary small-btn ipc-edit-btn" data-ipc-id="${item.id}" data-ipc-percentage="${item.percentage}" data-ipc-cycle-id="${item.effective_from_cycle_id}">Editar</button>` : ""}
+                </div>
+            </div>
+        `).join("")
+        : '<p class="muted">No hay ajustes IPC registrados.</p>';
+}
+
+async function loadIpcAdjustments() {
+    ipcAdjustments = await apiRequest("/rates/ipc-adjustments");
+    renderIpcHistory();
+}
+
+async function openIpcModal() {
+    editingIpcAdjustmentId = null;
+    ipcPercentage.value = "";
+    ipcCycle.value = ratesCycle.value || cyclesCache[0]?.id || "";
+    ipcAddBtn.textContent = "Agregar";
+    await loadIpcAdjustments();
+    ipcModal.classList.remove("hidden");
+}
+
+function closeIpcModal() {
+    ipcModal.classList.add("hidden");
+    editingIpcAdjustmentId = null;
+    ipcPercentage.value = "";
+    ipcAddBtn.textContent = "Agregar";
+}
+
+searchEmailSheetBtn?.addEventListener("click", () => sendSearchEmail("SHEET"));
+searchEmailSettlementBtn?.addEventListener("click", () => sendSearchEmail("SETTLEMENT"));
+
+async function openSoftlandExportModal() {
     if (!hasPermission("payroll.softland")) return;
-    pendingFeature("Exportar Softland quedo preparado en la interfaz. Falta definir las columnas exactas del archivo.");
-});
+    if (!cyclesCache.length) await loadCycleDropdowns();
+    softlandExportCycle.value = cyclesCache[0]?.id || "";
+    softlandExportModal.classList.remove("hidden");
+}
+
+function closeSoftlandExportModal() {
+    softlandExportModal.classList.add("hidden");
+    softlandExportConfirmBtn.disabled = false;
+    softlandExportConfirmBtn.textContent = "Exportar";
+}
+
+async function exportSoftlandCycle() {
+    if (!softlandExportCycle.value) {
+        alert("Seleccione un ciclo.");
+        return;
+    }
+    softlandExportConfirmBtn.disabled = true;
+    softlandExportConfirmBtn.textContent = "Generando...";
+    try {
+        const query = new URLSearchParams({cycle_id: softlandExportCycle.value});
+        await downloadApiFile(`/exports/softland?${query}`);
+        closeSoftlandExportModal();
+    } catch (error) {
+        alert(error.message);
+        softlandExportConfirmBtn.disabled = false;
+        softlandExportConfirmBtn.textContent = "Exportar";
+    }
+}
+
+searchSoftlandBtn?.addEventListener("click", openSoftlandExportModal);
 
 liquidationExportExcelBtn?.addEventListener("click", () => {
+    if (!confirm("¿Exportar la planilla visualizada en formato Excel?")) return;
     exportContextSettlement("xlsx").catch(error => alert(error.message));
 });
 
 liquidationExportPdfBtn?.addEventListener("click", () => {
+    if (!confirm("¿Exportar la liquidación visualizada en formato PDF?")) return;
     exportContextSettlement("pdf").catch(error => alert(error.message));
 });
 
-liquidationEmailBtn?.addEventListener("click", () => {
+async function sendContextEmail(emailType) {
     if (!hasPermission("payroll.email")) return;
     if (!currentContext || !liquidationCycle.value || !liquidationEmployee.value
         || liquidationEmployee.value === "__ALL__") {
@@ -2745,26 +3332,37 @@ liquidationEmailBtn?.addEventListener("click", () => {
     const employee = contextEmployeesCache.find(
         item => Number(item.id) === Number(liquidationEmployee.value)
     );
-    if (!confirm(`¿Enviar la liquidación de ${employee?.employee_name || "trabajador seleccionado"} al destinatario de prueba (sjorquera@unisan.cl)?`)) return;
-    liquidationEmailBtn.disabled = true;
-    apiRequest("/email/settlement", {
+    const isSheet = emailType === "SHEET";
+    const recipient = isSheet ? "jose.videla@acsa-tec.cl" : "rrhh@unisan.cl";
+    const action = isSheet ? "Enviar Planilla" : "Enviar Liquidación";
+    if (!confirm(`¿${action} de ${employee?.employee_name || "trabajador seleccionado"} por email a ${recipient}?`)) return;
+    liquidationEmailSheetBtn.disabled = true;
+    liquidationEmailSettlementBtn.disabled = true;
+    try {
+        const result = await apiRequest("/email/settlement", {
         method: "POST",
         body: JSON.stringify({
             cycle_id: Number(liquidationCycle.value),
             employee_id: Number(liquidationEmployee.value),
             cost_center: currentContext.costCenter,
-            role_type: currentContext.roleType
+            role_type: currentContext.roleType,
+            email_type: emailType
         })
-    })
-        .then(result => alert(`Liquidación enviada exitosamente a ${result.recipient_name} (${result.recipient}).`))
-        .catch(error => alert(error.message))
-        .finally(() => updateContextActionState());
-});
+        });
+        alert(`${isSheet ? "Planilla" : "Liquidación"} enviada exitosamente a ${result.recipient_name} (${result.recipient}).`);
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        updateContextActionState();
+    }
+}
 
-liquidationSoftlandBtn?.addEventListener("click", () => {
-    if (!hasPermission("payroll.softland")) return;
-    pendingFeature("Exportar Softland quedo preparado en la interfaz. Falta definir las columnas exactas del archivo.");
-});
+liquidationEmailSheetBtn?.addEventListener("click", () => sendContextEmail("SHEET"));
+liquidationEmailSettlementBtn?.addEventListener("click", () => sendContextEmail("SETTLEMENT"));
+
+liquidationSoftlandBtn?.addEventListener("click", openSoftlandExportModal);
+softlandExportCancelBtn?.addEventListener("click", closeSoftlandExportModal);
+softlandExportConfirmBtn?.addEventListener("click", exportSoftlandCycle);
 
 const existingToken = localStorage.getItem("payroll_access_token");
 if (existingToken) {

@@ -6,7 +6,8 @@ from zipfile import ZipFile
 
 from sqlalchemy import select
 
-from app.models import PayrollExportLog, PayrollManualAdjustment
+from app.models import Employee, PayrollExportLog, PayrollManualAdjustment
+from app.softland import ensure_softland_mappings
 from conftest import login
 from test_settlements import seed_settlement
 
@@ -177,3 +178,125 @@ def test_export_requires_authentication(client, db_factory):
     )
 
     assert response.status_code == 401
+
+
+def test_export_softland_cycle_has_exact_columns_order_and_aggregates(client, db_factory):
+    driver_id, assistant_id = seed_settlement(db_factory)
+    with db_factory() as db:
+        db.get(Employee, driver_id).rut = "12.584.663-4"
+        db.get(Employee, assistant_id).rut = "9.876.543-2"
+        db.add_all(
+            [
+                PayrollManualAdjustment(
+                    cycle_id=1,
+                    employee_id=driver_id,
+                    cost_center="ALL",
+                    role_type="ALL",
+                    adjustment_type="BONUS",
+                    adjustment_name="Bono",
+                    units=Decimal("1"),
+                    amount=Decimal("100"),
+                ),
+                PayrollManualAdjustment(
+                    cycle_id=1,
+                    employee_id=driver_id,
+                    cost_center="ALL",
+                    role_type="ALL",
+                    adjustment_type="EVENT_BONUS",
+                    adjustment_name="Bono Evento",
+                    units=Decimal("1"),
+                    amount=Decimal("20"),
+                ),
+                PayrollManualAdjustment(
+                    cycle_id=1,
+                    employee_id=driver_id,
+                    cost_center="ALL",
+                    role_type="ALL",
+                    adjustment_type="VACATION",
+                    adjustment_name="Vacaciones",
+                    units=Decimal("1"),
+                    amount=Decimal("30"),
+                ),
+            ]
+        )
+        db.commit()
+        ensure_softland_mappings(db)
+
+    response = client.get(
+        "/api/exports/softland?cycle_id=1",
+        headers=admin_headers(client),
+    )
+
+    assert response.status_code == 200
+    assert 'filename="Export Softland (06-2026).xlsx"' in response.headers["content-disposition"]
+    archive = ZipFile(BytesIO(response.content))
+    worksheet_xml = archive.read("xl/worksheets/sheet1.xml").decode("utf-8")
+    assert "FICHA" in worksheet_xml
+    assert "CODI" in worksheet_xml
+    assert "MES AÑO" in worksheet_xml
+    assert "VALOR" in worksheet_xml
+    assert worksheet_xml.index("H005") < worksheet_xml.index("H008")
+    assert worksheet_xml.index("H008") < worksheet_xml.index("H022")
+    assert worksheet_xml.index("H022") < worksheet_xml.index("H040")
+    assert "12584663" in worksheet_xml
+    assert "9876543" not in worksheet_xml
+    assert "06/2026" in worksheet_xml
+    assert "<v>150</v>" in worksheet_xml  # H008: 50 de producción + 100 de bono.
+    assert "<v>45</v>" in worksheet_xml  # H022: 25 de eventos + 20 de bono evento.
+    assert "<v>30</v>" in worksheet_xml
+    assert "<v>0</v>" not in worksheet_xml
+
+    with db_factory() as db:
+        logs = db.scalars(
+            select(PayrollExportLog).where(PayrollExportLog.export_scope == "SOFTLAND")
+        ).all()
+        assert len(logs) == 1
+
+
+def test_export_softland_uses_worker_name_when_rut_is_missing(client, db_factory):
+    seed_settlement(db_factory)
+    with db_factory() as db:
+        ensure_softland_mappings(db)
+
+    response = client.get(
+        "/api/exports/softland?cycle_id=1",
+        headers=admin_headers(client),
+    )
+
+    assert response.status_code == 200
+    archive = ZipFile(BytesIO(response.content))
+    worksheet_xml = archive.read("xl/worksheets/sheet1.xml").decode("utf-8")
+    assert "Chofer Uno" in worksheet_xml
+    assert "Auxiliar Uno" not in worksheet_xml
+    assert "H040" not in worksheet_xml
+    assert "<v>0</v>" not in worksheet_xml
+
+
+def test_export_softland_reports_unmapped_adjustment(client, db_factory):
+    driver_id, assistant_id = seed_settlement(db_factory)
+    with db_factory() as db:
+        db.get(Employee, driver_id).rut = "12.584.663-4"
+        db.get(Employee, assistant_id).rut = "9.876.543-2"
+        db.add(
+            PayrollManualAdjustment(
+                cycle_id=1,
+                employee_id=driver_id,
+                cost_center="ALL",
+                role_type="ALL",
+                adjustment_type="MANUAL_ADJUSTMENT",
+                adjustment_name="Ajuste sin código",
+                units=Decimal("1"),
+                amount=Decimal("100"),
+            )
+        )
+        db.commit()
+        ensure_softland_mappings(db)
+
+    response = client.get(
+        "/api/exports/softland?cycle_id=1",
+        headers=admin_headers(client),
+    )
+
+    assert response.status_code == 422
+    assert "Conceptos sin homologación Softland" in response.json()["detail"]
+    assert "Ajuste sin código" in response.json()["detail"]

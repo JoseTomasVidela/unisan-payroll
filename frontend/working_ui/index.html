@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>UNISAN | Liquidaciones</title>
-    <link rel="stylesheet" href="styles.css?v=3c35" />
+    <link rel="stylesheet" href="styles.css?v=3c41" />
 </head>
 <body>
     <section id="login-screen" class="login-screen">
@@ -55,6 +55,7 @@
 
                 <div class="nav-spacer"></div>
                 <div class="nav-label">Cuenta</div>
+                <button class="nav-item" data-view="audit" id="audit-nav"><span>Auditoría</span></button>
                 <button class="nav-item" data-view="users" id="users-nav"><span>Usuarios</span></button>
                 <button class="nav-item" id="logout-btn"><span>Cerrar sesion</span></button>
             </nav>
@@ -64,8 +65,28 @@
             <header class="topbar">
                 <button id="toggle-sidebar" class="hamburger">=</button>
                 <div class="top-icons">
+                    <button
+                        type="button"
+                        id="operations-edit-lock-btn"
+                        class="planilla-lock-button lock-closed"
+                        aria-label="Estado de edición de planillas"
+                        title="Consultando estado de edición">
+                        <svg class="lock-state-icon" viewBox="0 0 40 40" aria-hidden="true">
+                            <circle cx="20" cy="20" r="19"></circle>
+                            <g class="lock-closed-art">
+                                <path class="lock-fill" d="M13 18v-4a7 7 0 0 1 14 0v4h-3v-4a4 4 0 0 0-8 0v4z"></path>
+                                <path class="lock-fill" d="M11 17h18v15H11z"></path>
+                                <path class="lock-mark" d="m16 22 8 7m0-7-8 7"></path>
+                            </g>
+                            <g class="lock-open-art">
+                                <path class="lock-fill" d="M16 18v-4a7 7 0 0 1 13-3l-3 1a4 4 0 0 0-7 2v4z"></path>
+                                <path class="lock-fill" d="M11 17h18v15H11z"></path>
+                                <path class="lock-mark" d="m15 25 4 4 7-8"></path>
+                            </g>
+                        </svg>
+                    </button>
                     <div class="avatar small">JV</div>
-                    <span>Jose Tomas Videla</span>
+                    <span id="top-user-name">Jose Tomas Videla</span>
                 </div>
             </header>
 
@@ -112,9 +133,6 @@
                                     <button class="btn secondary small-btn" id="holiday-next-month-btn">Mes siguiente</button>
                                 </div>
                                 <div id="holiday-calendar" class="holiday-calendar"></div>
-                                <div class="holiday-actions">
-                                    <button class="btn primary small-btn" id="holiday-new-btn">Nuevo feriado</button>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -148,10 +166,21 @@
                                     <button class="btn secondary hidden" id="liquidation-add-activity-btn">Agregar Actividad</button>
                                     <button class="btn primary hidden" id="save-btn">Guardar</button>
                                     <button class="btn secondary hidden" id="cancel-edit-btn">Cancelar</button>
-                                    <button class="btn secondary" id="liquidation-export-excel-btn">Exportar Excel</button>
-                                    <button class="btn secondary" id="liquidation-export-pdf-btn">Exportar PDF</button>
-                                    <button class="btn secondary" id="liquidation-email-btn">Enviar por Email</button>
-                                    <button class="btn secondary" id="liquidation-softland-btn">Exportar Softland</button>
+                                    <details class="action-menu" id="liquidation-export-menu">
+                                        <summary class="btn secondary">Exportar</summary>
+                                        <div class="action-menu-panel">
+                                            <button id="liquidation-export-excel-btn">Exportar Excel</button>
+                                            <button id="liquidation-export-pdf-btn">Exportar PDF</button>
+                                            <button id="liquidation-softland-btn">Exportar Softland</button>
+                                        </div>
+                                    </details>
+                                    <details class="action-menu" id="liquidation-email-menu">
+                                        <summary class="btn secondary">Enviar por email</summary>
+                                        <div class="action-menu-panel">
+                                            <button id="liquidation-email-sheet-btn">Enviar Planilla</button>
+                                            <button id="liquidation-email-settlement-btn">Enviar Liquidación</button>
+                                        </div>
+                                    </details>
                                 </div>
                             </div>
 
@@ -192,10 +221,21 @@
                                 <button class="btn secondary hidden" id="search-adjustments-btn">Ajustes</button>
                                 <button class="btn primary hidden" id="search-save-btn">Guardar</button>
                                 <button class="btn secondary hidden" id="search-cancel-edit-btn">Cancelar</button>
-                                <button class="btn secondary" id="search-export-excel-btn">Exportar Excel</button>
-                                <button class="btn secondary" id="search-export-pdf-btn">Exportar PDF</button>
-                                <button class="btn secondary" id="search-email-btn">Enviar por Email</button>
-                                <button class="btn secondary" id="search-softland-btn">Exportar Softland</button>
+                                <details class="action-menu" id="search-export-menu">
+                                    <summary class="btn secondary">Exportar</summary>
+                                    <div class="action-menu-panel">
+                                        <button id="search-export-excel-btn">Exportar Excel</button>
+                                        <button id="search-export-pdf-btn">Exportar PDF</button>
+                                        <button id="search-softland-btn">Exportar Softland</button>
+                                    </div>
+                                </details>
+                                <details class="action-menu" id="search-email-menu">
+                                    <summary class="btn secondary">Enviar por email</summary>
+                                    <div class="action-menu-panel">
+                                        <button id="search-email-sheet-btn">Enviar Planilla</button>
+                                        <button id="search-email-settlement-btn">Enviar Liquidación</button>
+                                    </div>
+                                </details>
                             </div>
                         </div>
                     </div>
@@ -227,22 +267,26 @@
                                     <h3>Tarifas vigentes por categoria</h3>
                                     <p class="muted">Finanzas define estas tarifas y las liquidaciones las usan automaticamente.</p>
                                 </div>
-                                <div class="filters">
+                                <div class="filters rates-filter-bar">
+                                    <div class="rate-action-control">
+                                        <button id="ipc-adjustment-btn" class="btn secondary">Ajustar IPC</button>
+                                    </div>
+                                    <label>Tipo de contrato
+                                        <select id="rates-context">
+                                            <option value="dr-driver-old">D&amp;R Chofer Antiguo</option>
+                                            <option value="dr-driver-new">D&amp;R Chofer Nuevo</option>
+                                            <option value="dr-assistant-old">D&amp;R Auxiliar Antiguo</option>
+                                            <option value="dr-assistant-new">D&amp;R Auxiliar Nuevo</option>
+                                            <option value="services-driver-old">Servicios Chofer Antiguo</option>
+                                            <option value="services-driver-new">Servicios Chofer Nuevo</option>
+                                            <option value="services-assistant-old">Servicios Auxiliar Antiguo</option>
+                                            <option value="services-assistant-new">Servicios Auxiliar Nuevo</option>
+                                        </select>
+                                    </label>
                                     <label>Ciclo
                                         <select id="rates-cycle"></select>
                                     </label>
                                 </div>
-                            </div>
-
-                            <div class="context-tabs" id="rates-tabs">
-                                <button class="context-tab active" data-rates-context="dr-driver-old">D&amp;R Chofer Antiguo</button>
-                                <button class="context-tab" data-rates-context="dr-driver-new">D&amp;R Chofer Nuevo</button>
-                                <button class="context-tab" data-rates-context="dr-assistant-old">D&amp;R Auxiliar Antiguo</button>
-                                <button class="context-tab" data-rates-context="dr-assistant-new">D&amp;R Auxiliar Nuevo</button>
-                                <button class="context-tab" data-rates-context="services-driver-old">Servicios Chofer Antiguo</button>
-                                <button class="context-tab" data-rates-context="services-driver-new">Servicios Chofer Nuevo</button>
-                                <button class="context-tab" data-rates-context="services-assistant-old">Servicios Auxiliar Antiguo</button>
-                                <button class="context-tab" data-rates-context="services-assistant-new">Servicios Auxiliar Nuevo</button>
                             </div>
 
                             <table class="erp-table">
@@ -268,7 +312,7 @@
                             <div class="toolbar">
                                 <div>
                                     <h3>Listado de trabajadores</h3>
-                                    <p class="muted">Administrar nombre y contrato Nuevo/Antiguo.</p>
+                                    <p class="muted">Administrar nombre, centro de costo y contrato Nuevo/Antiguo.</p>
                                 </div>
                                 <button class="btn primary" id="new-worker-btn">Nuevo Trabajador</button>
                             </div>
@@ -278,6 +322,7 @@
                                     <tr>
                                         <th>Nombre</th>
                                         <th>Cargo</th>
+                                        <th>Centro de Costo</th>
                                         <th>RUT</th>
                                         <th>Email</th>
                                         <th>Contrato</th>
@@ -352,11 +397,82 @@
                         </div>
                     </div>
                 </section>
+
+                <section id="audit" class="view">
+                    <div class="panel">
+                        <div class="panel-title dark">Auditoría</div>
+                        <div class="panel-body">
+                            <div class="audit-filter">
+                                <label>Fecha a consultar
+                                    <input id="audit-date" type="date" />
+                                </label>
+                                <button id="audit-search-btn" class="btn primary" type="button">Consultar</button>
+                                <button id="audit-export-btn" class="btn secondary" type="button" disabled>Exportar PDF</button>
+                            </div>
+                            <table class="erp-table audit-table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha y hora</th>
+                                        <th>Usuario</th>
+                                        <th>Acción realizada</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="audit-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
             </main>
 
             <footer>&copy; 2026 UNISAN - Todos los derechos reservados</footer>
         </section>
     </section>
+
+    <div id="user-password-modal" class="modal hidden">
+        <div class="modal-box user-edit-modal-box">
+            <h2>Editar Usuario</h2>
+            <p id="user-password-reset-description" class="muted"></p>
+            <div class="form-grid single-column">
+                <label>Nombre
+                    <input id="edit-user-full-name" type="text" maxlength="160" />
+                </label>
+                <label>Usuario
+                    <input id="edit-user-username" type="text" minlength="3" maxlength="80" />
+                </label>
+                <label>Perfil
+                    <select id="edit-user-role">
+                        <option value="ADMIN">ADMIN</option>
+                        <option value="RRHH">RRHH</option>
+                        <option value="OPERATIVO">OPERATIVO</option>
+                    </select>
+                </label>
+                <label>Estado
+                    <select id="edit-user-active">
+                        <option value="true">Activo</option>
+                        <option value="false">Inactivo</option>
+                    </select>
+                </label>
+            </div>
+            <div class="user-password-section">
+                <h3>Reestablecer Contraseña</h3>
+                <div class="form-grid single-column">
+                    <label>Nueva contraseña
+                        <input id="user-new-password" type="password" minlength="6" autocomplete="new-password" placeholder="6+ caracteres, mayúscula, minúscula y especial" />
+                    </label>
+                    <label>Confirmar contraseña
+                        <input id="user-confirm-password" type="password" minlength="6" autocomplete="new-password" />
+                    </label>
+                </div>
+                <button id="save-user-password-btn" class="btn secondary" type="button">Reestablecer clave</button>
+            </div>
+            <div class="actions user-edit-actions">
+                <button id="delete-user-btn" class="btn danger" type="button">Eliminar usuario</button>
+                <span class="action-spacer"></span>
+                <button id="cancel-user-password-btn" class="btn secondary" type="button">Cancelar</button>
+                <button id="save-user-changes-btn" class="btn primary" type="button">Guardar cambios</button>
+            </div>
+        </div>
+    </div>
 
     <div id="confirm-modal" class="modal hidden">
         <div class="modal-box">
@@ -418,6 +534,13 @@
                         <option value="NEW">Nuevo</option>
                     </select>
                 </label>
+                <label>Centro de Costo
+                    <select id="worker-cost-center" required>
+                        <option value="">Seleccione</option>
+                        <option value="DR">D&amp;R</option>
+                        <option value="SERVICES">Servicios</option>
+                    </select>
+                </label>
                 <label>RUT
                     <input id="worker-rut" type="text" placeholder="12.345.678-9" />
                 </label>
@@ -448,8 +571,9 @@
                 <label>Tipo de ajuste
                     <select id="adjustment-type">
                         <option value="VACATION">Vacaciones</option>
-                        <option value="BONUS">Bono</option>
-                        <option value="MANUAL_ADJUSTMENT">Ajuste manual</option>
+                        <option value="VACATION_BONUS">Bono Vacaciones</option>
+                        <option value="PRODUCTION_BONUS">Bono Producción</option>
+                        <option value="EVENT_BONUS">Bono Evento</option>
                     </select>
                 </label>
                 <label>Cantidad
@@ -476,6 +600,7 @@
                                 <th>Tipo</th>
                                 <th>Cantidad</th>
                                 <th>Monto</th>
+                                <th>Observaciones</th>
                                 <th>Estado</th>
                                 <th>Acciones</th>
                             </tr>
@@ -503,6 +628,37 @@
             <div class="actions">
                 <button id="search-edit-modal-cancel-btn" class="btn secondary">Cancelar</button>
                 <button id="search-edit-modal-save-btn" class="btn primary">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="ipc-modal" class="modal hidden">
+        <div class="modal-box wide">
+            <h2>Ajustar IPC</h2>
+            <div class="form-grid">
+                <label>Variación IPC (%)
+                    <input id="ipc-percentage" type="number" step="0.01" min="-99.99" />
+                </label>
+                <label>Aplicar desde el ciclo
+                    <select id="ipc-cycle"></select>
+                </label>
+            </div>
+            <div class="actions left">
+                <button id="ipc-add-btn" class="btn primary">Agregar</button>
+                <button id="ipc-cancel-btn" class="btn secondary">Cancelar</button>
+            </div>
+            <h3>Historial de ajustes IPC</h3>
+            <div id="ipc-history" class="ipc-history"></div>
+        </div>
+    </div>
+
+    <div id="ipc-confirm-modal" class="modal hidden">
+        <div class="modal-box small-modal-box">
+            <h2>Confirmar ajuste IPC</h2>
+            <p id="ipc-confirm-message"></p>
+            <div class="actions">
+                <button id="ipc-confirm-no" class="btn secondary">No</button>
+                <button id="ipc-confirm-yes" class="btn primary">Sí</button>
             </div>
         </div>
     </div>
@@ -574,7 +730,23 @@
         </div>
     </div>
 
+    <div id="softland-export-modal" class="modal hidden">
+        <div class="modal-box">
+            <h2>Exportar Softland</h2>
+            <div class="form-grid single-column">
+                <label>Ciclo a exportar
+                    <select id="softland-export-cycle"></select>
+                </label>
+            </div>
+            <p class="muted">El archivo incluirá a todos los trabajadores y conceptos del ciclo seleccionado.</p>
+            <div class="actions">
+                <button id="softland-export-cancel-btn" class="btn secondary" type="button">Cancelar</button>
+                <button id="softland-export-confirm-btn" class="btn primary" type="button">Exportar</button>
+            </div>
+        </div>
+    </div>
+
     <script src="config.js?v=1"></script>
-    <script src="app.js?v=azure-api-root-1"></script>
+    <script src="app.js?v=adjustments-catalog-1"></script>
 </body>
 </html>

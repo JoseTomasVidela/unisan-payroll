@@ -14,6 +14,7 @@ from sqlalchemy import (
     String,
     Table,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -95,6 +96,7 @@ class Employee(Base):
     paternal_surname: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     maternal_surname: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
     role_type: Mapped[str] = mapped_column(String(32), index=True)
+    cost_center: Mapped[str | None] = mapped_column(String(32), nullable=True)
     contract_type: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
     rut: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
@@ -175,6 +177,45 @@ class PayrollConcept(Base):
     display_order: Mapped[int] = mapped_column(Integer, default=0)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PayrollSoftlandCode(Base):
+    __tablename__ = "payroll_softland_codes"
+
+    softland_code: Mapped[str] = mapped_column(String(16), primary_key=True)
+    concept_name: Mapped[str] = mapped_column(String(200))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class PayrollSoftlandConceptMapping(Base):
+    __tablename__ = "payroll_softland_concept_mappings"
+    __table_args__ = (
+        UniqueConstraint(
+            "mapping_type",
+            "mapping_key",
+            name="uq_payroll_softland_mapping_key",
+        ),
+        UniqueConstraint(
+            "concept_id",
+            name="uq_payroll_softland_mapping_concept",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    concept_id: Mapped[int | None] = mapped_column(
+        ForeignKey("payroll_concepts.id"), nullable=True, index=True
+    )
+    mapping_type: Mapped[str] = mapped_column(String(20), index=True)
+    mapping_key: Mapped[str] = mapped_column(String(160))
+    source_label: Mapped[str] = mapped_column(String(200))
+    softland_code: Mapped[str] = mapped_column(
+        ForeignKey("payroll_softland_codes.softland_code"), index=True
+    )
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class PayrollConceptRate(Base):
@@ -280,11 +321,34 @@ class PayrollHoliday(Base):
     holiday_scope: Mapped[str] = mapped_column(String(16), index=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_by: Mapped[int | None] = mapped_column(
-        ForeignKey("payroll_users.id"), nullable=True
-    )
-    updated_by: Mapped[int | None] = mapped_column(
-        ForeignKey("payroll_users.id"), nullable=True
-    )
+    created_by: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    updated_by: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class PayrollIpcAdjustment(Base):
+    __tablename__ = "payroll_ipc_adjustments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    percentage: Mapped[Decimal] = mapped_column(Numeric(8, 4))
+    effective_from_cycle_id: Mapped[int] = mapped_column(
+        ForeignKey("payroll_cycles.id"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(20), default="DRAFT", index=True)
+    snapshot_before: Mapped[str | None] = mapped_column(Text, nullable=True)
+    snapshot_after: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("payroll_users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    applied_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class PayrollSetting(Base):
+    __tablename__ = "payroll_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    setting_key: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    setting_value: Mapped[str] = mapped_column(String(255))
+    updated_by: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -25,6 +25,9 @@ REQUIRED_PRODUCTION_TABLES = frozenset(
         "payroll_records",
         "payroll_concepts",
         "payroll_concept_rates",
+        "payroll_softland_codes",
+        "payroll_softland_concept_mappings",
+        "payroll_ipc_adjustments",
         "payroll_manual_adjustments",
         "payroll_cell_overrides",
         "payroll_audit_log",
@@ -48,6 +51,7 @@ REQUIRED_TABLE_COLUMNS = {
         {
             "employee_name",
             "role_type",
+            "cost_center",
             "contract_type",
             "rut",
             "email",
@@ -130,6 +134,40 @@ REQUIRED_TABLE_COLUMNS = {
             "effective_from_cycle_id",
             "effective_to_cycle_id",
             "created_by",
+            "active",
+            "created_at",
+            "updated_at",
+        }
+    ),
+    "payroll_ipc_adjustments": frozenset(
+        {
+            "percentage",
+            "effective_from_cycle_id",
+            "status",
+            "snapshot_before",
+            "snapshot_after",
+            "created_by",
+            "created_at",
+            "updated_at",
+            "applied_at",
+        }
+    ),
+    "payroll_softland_codes": frozenset(
+        {
+            "softland_code",
+            "concept_name",
+            "active",
+            "created_at",
+            "updated_at",
+        }
+    ),
+    "payroll_softland_concept_mappings": frozenset(
+        {
+            "concept_id",
+            "mapping_type",
+            "mapping_key",
+            "source_label",
+            "softland_code",
             "active",
             "created_at",
             "updated_at",

@@ -48,11 +48,34 @@ class UserActiveUpdate(BaseModel):
     active: bool
 
 
+class UserPasswordReset(BaseModel):
+    password: str = Field(min_length=6, max_length=256)
+
+    @field_validator("password")
+    @classmethod
+    def password_policy(cls, value: str) -> str:
+        return validate_password(value)
+
+
+class UserUpdate(BaseModel):
+    username: str = Field(min_length=3, max_length=80)
+    full_name: str = Field(min_length=1, max_length=160)
+    role_name: str
+    active: bool
+
+
+class AuditEntryResponse(BaseModel):
+    action_date: datetime
+    username: str
+    action: str
+
+
 class SettlementEmailRequest(BaseModel):
     cycle_id: int
     employee_id: int
     cost_center: str | None = None
     role_type: str | None = None
+    email_type: str = Field(default="SETTLEMENT", pattern="^(SETTLEMENT|SHEET)$")
 
 
 class PermissionResponse(BaseModel):
@@ -127,6 +150,7 @@ class SearchEmployeeOptionResponse(BaseModel):
     rut: str | None = None
     email: str | None = None
     cargo: str | None = None
+    cost_center: str | None = None
 
 
 class EmployeeOptionResponse(BaseModel):
@@ -147,10 +171,12 @@ class WorkerListItemResponse(BaseModel):
     rut: str | None
     email: str | None
     cargo: str | None
+    cost_center: str | None
 
 
 class WorkerCreateRequest(BaseModel):
     employee_name: str = Field(min_length=1, max_length=180)
+    cost_center: str = Field(pattern="^(DR|SERVICES)$")
     contract_type: str | None = Field(default=None, pattern="^(NEW|OLD)?$")
     rut: str | None = Field(default=None, max_length=32)
     email: str | None = Field(default=None, max_length=255)
@@ -158,6 +184,7 @@ class WorkerCreateRequest(BaseModel):
 
 
 class WorkerUpdateRequest(BaseModel):
+    cost_center: str | None = Field(default=None, pattern="^(DR|SERVICES)?$")
     contract_type: str | None = Field(default=None, pattern="^(NEW|OLD)?$")
     rut: str | None = Field(default=None, max_length=32)
     email: str | None = Field(default=None, max_length=255)
@@ -249,6 +276,17 @@ class HolidayUpdateRequest(BaseModel):
     active: bool = True
 
 
+class OperationsEditLockResponse(BaseModel):
+    locked: bool
+    can_control: bool
+    updated_by: str | None = None
+    updated_at: datetime | None = None
+
+
+class OperationsEditLockUpdate(BaseModel):
+    locked: bool
+
+
 class ManualAdjustmentAuditResponse(BaseModel):
     id: int
     action_type: str
@@ -280,7 +318,7 @@ class ManualAdjustmentCreateRequest(BaseModel):
     cycle_id: int
     employee_id: int
     adjustment_type: str = Field(
-        pattern="^(VACATION|BONUS|MANUAL_ADJUSTMENT)$"
+        pattern="^(VACATION|VACATION_BONUS|PRODUCTION_BONUS|EVENT_BONUS)$"
     )
     description: str | None = Field(default=None, max_length=200)
     units: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=4)
@@ -290,7 +328,7 @@ class ManualAdjustmentCreateRequest(BaseModel):
 
 class ManualAdjustmentUpdateRequest(BaseModel):
     adjustment_type: str = Field(
-        pattern="^(VACATION|BONUS|MANUAL_ADJUSTMENT)$"
+        pattern="^(VACATION|VACATION_BONUS|PRODUCTION_BONUS|EVENT_BONUS)$"
     )
     description: str | None = Field(default=None, max_length=200)
     units: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=4)
@@ -310,6 +348,22 @@ class SettlementRateUpdateRequest(BaseModel):
     cost_center: str
     role_type: str
     updates: list[ConceptRateUpdate] = Field(min_length=1)
+
+
+class IpcAdjustmentCreateRequest(BaseModel):
+    percentage: Decimal = Field(gt=-100, max_digits=8, decimal_places=4)
+    effective_from_cycle_id: int
+
+
+class IpcAdjustmentResponse(BaseModel):
+    id: int
+    percentage: Decimal
+    effective_from_cycle_id: int
+    effective_from_cycle_name: str
+    status: str
+    created_at: datetime
+    updated_at: datetime | None
+    applied_at: datetime | None
 
 
 class SettlementCellUpdateItem(BaseModel):

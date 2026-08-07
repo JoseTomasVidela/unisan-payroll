@@ -46,14 +46,20 @@ NON_CONCEPT_RECORD_FIELDS = {
 WEEKDAY_LABELS = ("lun", "mar", "mie", "jue", "vie", "sab", "dom")
 PRODUCTION_ADJUSTMENT_TYPES = {
     "VACATION",
+    "VACATION_BONUS",
     "OUT_OF_PRODUCTION_BONUS",
     "BONUS",
+    "PRODUCTION_BONUS",
+    "EVENT_BONUS",
     "MANUAL_ADJUSTMENT",
 }
 ADJUSTMENT_ROW_ORDER = [
     ("VACATION", "VACACIONES"),
+    ("VACATION_BONUS", "BONO VACACIONES"),
     ("OUT_OF_PRODUCTION_BONUS", "BONO FUERA DE PRODUCCION"),
     ("BONUS", "BONOS"),
+    ("PRODUCTION_BONUS", "BONO PRODUCCION"),
+    ("EVENT_BONUS", "BONO EVENTO"),
     ("MANUAL_ADJUSTMENT", "AJUSTE MANUAL"),
     ("DISCOUNT", "DESCUENTOS"),
 ]
@@ -597,7 +603,11 @@ class SettlementEngine:
         adjustment_rows = [
             self._calculated_row(
                 row_type=f"adjustment_{adjustment.adjustment_type.lower()}",
-                concept_name=adjustment.adjustment_name,
+                concept_name=(
+                    f"{adjustment.adjustment_name} — {adjustment.notes}"
+                    if adjustment.notes
+                    else adjustment.adjustment_name
+                ),
                 units=adjustment.units or Decimal("1"),
                 rate=adjustment.amount,
                 total=adjustment_line_totals[adjustment.id],

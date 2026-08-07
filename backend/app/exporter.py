@@ -43,6 +43,129 @@ RECEIPT_LINES = [
 ]
 
 
+def export_audit_pdf_bytes(audit_date: date, entries: list[object]) -> bytes:
+    page_width, page_height = 842, 595
+    margin = 36
+    column_widths = (185, 145, 440)
+
+    def pdf_text(value: object) -> str:
+        return (
+            str(value)
+            .replace("\\", "\\\\")
+            .replace("(", "\\(")
+            .replace(")", "\\)")
+        )
+
+    def wrap(value: str, max_chars: int) -> list[str]:
+        words = str(value).split()
+        if not words:
+            return [""]
+        lines, current = [], words[0]
+        for word in words[1:]:
+            candidate = f"{current} {word}"
+            if len(candidate) <= max_chars:
+                current = candidate
+            else:
+                lines.append(current)
+                current = word
+        lines.append(current)
+        return lines
+
+    pages: list[str] = []
+    stream: list[str] = []
+    y = page_height - margin
+
+    def text_line(x: float, baseline: float, value: str, size: int = 9, bold: bool = False) -> None:
+        font = "F2" if bold else "F1"
+        stream.append(f"BT /{font} {size} Tf 1 0 0 1 {x:.1f} {baseline:.1f} Tm ({pdf_text(value)}) Tj ET")
+
+    def line(x1: float, y1: float, x2: float, y2: float) -> None:
+        stream.append(f"{x1:.1f} {y1:.1f} m {x2:.1f} {y2:.1f} l S")
+
+    def start_page() -> None:
+        nonlocal stream, y
+        stream = ["0.25 0.25 0.25 RG", "0.8 w"]
+        y = page_height - margin
+        text_line(margin, y, "UNISAN - Auditoría", 16, True)
+        text_line(margin, y - 20, f"Acciones realizadas el {audit_date.strftime('%d-%m-%Y')}", 10)
+        y -= 44
+        stream.append("0.180 0.525 0.667 rg")
+        stream.append(f"{margin} {y - 24} {sum(column_widths)} 24 re f")
+        stream.append("0 0 0 rg")
+        headings = ("Fecha y hora", "Usuario", "Acción realizada")
+        x = margin
+        for heading, width in zip(headings, column_widths):
+            text_line(x + 6, y - 16, heading, 9, True)
+            x += width
+        y -= 24
+
+    def finish_page() -> None:
+        pages.append("\n".join(stream))
+
+    start_page()
+    for entry in entries:
+        action_lines = wrap(getattr(entry, "action"), 76)
+        row_height = max(26, 10 + len(action_lines) * 12)
+        if y - row_height < margin + 16:
+            finish_page()
+            start_page()
+        action_date = getattr(entry, "action_date")
+        values = (
+            action_date.strftime("%d-%m-%Y %H:%M:%S"),
+            getattr(entry, "username"),
+        )
+        x = margin
+        text_line(x + 6, y - 17, values[0], 9)
+        x += column_widths[0]
+        text_line(x + 6, y - 17, values[1], 9)
+        x += column_widths[1]
+        for index, action_line in enumerate(action_lines):
+            text_line(x + 6, y - 17 - index * 12, action_line, 9)
+        line(margin, y - row_height, margin + sum(column_widths), y - row_height)
+        y -= row_height
+    if not entries:
+        text_line(margin + 6, y - 18, "No hay acciones registradas para esta fecha.", 9)
+    finish_page()
+
+    objects: list[bytes] = []
+    page_object_numbers: list[int] = []
+    content_object_numbers: list[int] = []
+    next_object = 5
+    for _ in pages:
+        page_object_numbers.append(next_object)
+        content_object_numbers.append(next_object + 1)
+        next_object += 2
+    objects.append(b"<< /Type /Catalog /Pages 2 0 R >>")
+    kids = " ".join(f"{number} 0 R" for number in page_object_numbers)
+    objects.append(f"<< /Type /Pages /Kids [{kids}] /Count {len(pages)} >>".encode("ascii"))
+    objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
+    objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>")
+    for page_number, content_number, content in zip(page_object_numbers, content_object_numbers, pages):
+        objects.append(
+            f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {page_width} {page_height}] "
+            f"/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents {content_number} 0 R >>".encode("ascii")
+        )
+        encoded = content.encode("cp1252", "replace")
+        objects.append(f"<< /Length {len(encoded)} >>\nstream\n".encode("ascii") + encoded + b"\nendstream")
+
+    output = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for number, obj in enumerate(objects, start=1):
+        offsets.append(len(output))
+        output.extend(f"{number} 0 obj\n".encode("ascii"))
+        output.extend(obj)
+        output.extend(b"\nendobj\n")
+    xref = len(output)
+    output.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    output.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        output.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    output.extend(
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF".encode("ascii")
+    )
+    return bytes(output)
+
+
 def _excel_column_name(index: int) -> str:
     result = ""
     while index > 0:
@@ -255,6 +378,60 @@ def export_xlsx_bytes(settlement: dict[str, object]) -> bytes:
     return buffer.getvalue()
 
 
+def export_softland_xlsx_bytes(rows: list[list[object]]) -> bytes:
+    worksheet_rows = [["FICHA", "CODI", "MES AÑO", "VALOR"], *rows]
+    sheet_rows_xml: list[str] = []
+    for row_index, row in enumerate(worksheet_rows, start=1):
+        cells = [
+            _xlsx_cell_xml(row_index, column_index, str(value))
+            for column_index, value in enumerate(row, start=1)
+        ]
+        sheet_rows_xml.append(f'<row r="{row_index}">{"".join(cells)}</row>')
+
+    worksheet_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f"<sheetData>{''.join(sheet_rows_xml)}</sheetData>"
+        "</worksheet>"
+    )
+    workbook_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        '<sheets><sheet name="Softland" sheetId="1" r:id="rId1"/></sheets>'
+        "</workbook>"
+    )
+    workbook_rels_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+        "</Relationships>"
+    )
+    root_rels_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+        "</Relationships>"
+    )
+    content_types_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        "</Types>"
+    )
+    buffer = BytesIO()
+    with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", content_types_xml)
+        archive.writestr("_rels/.rels", root_rels_xml)
+        archive.writestr("xl/workbook.xml", workbook_xml)
+        archive.writestr("xl/_rels/workbook.xml.rels", workbook_rels_xml)
+        archive.writestr("xl/worksheets/sheet1.xml", worksheet_xml)
+    return buffer.getvalue()
+
+
 def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
     page_width = 595
     page_height = 842
@@ -300,7 +477,8 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
         return escaped
 
     def _latin_text(value: str) -> str:
-        return _pdf_escape_text(str(value).encode("latin-1", "replace").decode("latin-1"))
+        normalized = str(value).replace("—", "-").replace("–", "-").replace("…", "...")
+        return _pdf_escape_text(normalized.encode("cp1252", "replace").decode("cp1252"))
 
     def _wrap_text(value: str, max_chars: int) -> list[str]:
         words = str(value).split()
@@ -590,8 +768,8 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
         objects.append(payload)
         return len(objects)
 
-    font_regular_id = add_object(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
-    font_bold_id = add_object(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>")
+    font_regular_id = add_object(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
+    font_bold_id = add_object(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>")
     image_id = None
     if logo_bytes:
         logo_width_px, logo_height_px = _jpeg_dimensions(logo_bytes)
@@ -651,6 +829,133 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
             f"trailer\n<< /Size {len(objects) + 1} /Root {catalog_id} 0 R >>\n"
             f"startxref\n{xref_offset}\n%%EOF"
         ).encode("latin-1")
+    )
+    return output.getvalue()
+
+
+def export_sheet_pdf_bytes(settlement: dict[str, object]) -> bytes:
+    """Export the complete on-screen payroll grid on one page sized to its content."""
+    dates = settlement["dates"]
+    rows = settlement["rows"]
+    statuses = settlement["statuses"]
+    column_widths = [220, 62, 72, 82] + [58] * len(dates)
+    margin = 18
+    header_heights = (40, 20, 30)
+    row_height = 20
+    page_width = sum(column_widths) + margin * 2
+    page_height = margin * 2 + sum(header_heights) + row_height * len(rows)
+    stream = ["0.7 w", "0 0 0 RG", "0 0 0 rg"]
+
+    def latin(value: object) -> str:
+        text = str(value or "").replace("—", "-").replace("–", "-").replace("…", "...")
+        text = text.encode("cp1252", "replace").decode("cp1252")
+        return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+    def cell_text(value: object, width: int) -> str:
+        maximum = max(3, int((width - 6) / 5.2))
+        text = str(value or "")
+        return text if len(text) <= maximum else f"{text[:maximum - 1]}…"
+
+    def draw_row(values: list[object], top: float, height: float, *, blue: bool = False, bold: bool = False) -> None:
+        x = margin
+        if blue:
+            stream.append("0.741 0.843 0.933 rg")
+            stream.append(f"{margin} {top - height} {sum(column_widths)} {height} re f")
+            stream.append("0 0 0 rg")
+        stream.append(f"{margin} {top - height} {sum(column_widths)} {height} re S")
+        for index, width in enumerate(column_widths):
+            if index:
+                stream.append(f"{x} {top} m {x} {top - height} l S")
+            value = values[index] if index < len(values) else ""
+            font = "F2" if bold else "F1"
+            text_lines = str(value or "").splitlines()[:2] or [""]
+            for line_index, line in enumerate(text_lines):
+                baseline = top - 12 - line_index * 11
+                stream.append(
+                    f"BT /{font} 8 Tf 1 0 0 1 {x + 3} {baseline} Tm "
+                    f"({latin(cell_text(line, width))}) Tj ET"
+                )
+            x += width
+
+    employee_name = settlement["employee"]["employee_name"]
+    employee_rut = settlement["employee"].get("rut") or ""
+    employee_heading = f"{employee_name}\nRUT: {employee_rut}" if employee_rut else employee_name
+    y = page_height - margin
+    draw_row(
+        [
+            employee_heading,
+            "Unidades",
+            "Tarifa",
+            "Total $",
+        ]
+        + [item["label"] for item in dates],
+        y,
+        header_heights[0],
+        blue=True,
+        bold=True,
+    )
+    y -= header_heights[0]
+    draw_row(
+        ["", "", "", ""] + [PDF_WEEKDAY_LABELS.get(item["weekday"], item["weekday"]) for item in dates],
+        y,
+        header_heights[1],
+        blue=True,
+        bold=True,
+    )
+    y -= header_heights[1]
+    draw_row(
+        ["Estado", "", "", ""] + [_format_status_label(item.get("status")) for item in statuses],
+        y,
+        header_heights[2],
+        blue=True,
+        bold=True,
+    )
+    y -= header_heights[2]
+    for row in rows:
+        daily_values = [item.get("value") for item in row["daily_values"]]
+        draw_row(
+            [
+                row["concept_name"],
+                _format_peso_number(row.get("units")),
+                _format_peso_number(row.get("rate")),
+                _format_peso_number(row.get("total")),
+            ] + [_format_peso_number(value) for value in daily_values],
+            y,
+            row_height,
+            blue=row["row_type"] in {"total_to_pay", "variable_daily", "worked_day", "week_corrida", "production_total"},
+            bold=row["row_type"] in {"total_to_pay", "production_total"},
+        )
+        y -= row_height
+
+    stream_bytes = "\n".join(stream).encode("latin-1", "replace")
+    objects = [
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
+        f"<< /Length {len(stream_bytes)} >>\nstream\n".encode("latin-1") + stream_bytes + b"\nendstream",
+        b"",
+        b"",
+    ]
+    objects[3] = (
+        f"<< /Type /Page /Parent 5 0 R /MediaBox [0 0 {page_width} {page_height}] "
+        f"/Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> /Contents 3 0 R >>"
+    ).encode("latin-1")
+    objects[4] = b"<< /Type /Pages /Kids [4 0 R] /Count 1 >>"
+    objects.append(b"<< /Type /Catalog /Pages 5 0 R >>")
+    output = BytesIO()
+    output.write(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+    offsets = [0]
+    for object_id, payload in enumerate(objects, start=1):
+        offsets.append(output.tell())
+        output.write(f"{object_id} 0 obj\n".encode("latin-1"))
+        output.write(payload)
+        output.write(b"\nendobj\n")
+    xref_offset = output.tell()
+    output.write(f"xref\n0 {len(objects) + 1}\n".encode("latin-1"))
+    output.write(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        output.write(f"{offset:010d} 00000 n \n".encode("latin-1"))
+    output.write(
+        f"trailer\n<< /Size {len(objects) + 1} /Root 6 0 R >>\nstartxref\n{xref_offset}\n%%EOF".encode("latin-1")
     )
     return output.getvalue()
 

@@ -462,9 +462,9 @@ def test_settlement_employee_options_are_filtered_by_context(client, db_factory)
     )
 
     assert drivers.status_code == 200
-    assert drivers.json() == [{"id": driver_id, "employee_name": "Chofer Uno", "contract_type": None, "rut": None, "email": None, "cargo": None}]
+    assert drivers.json() == [{"id": driver_id, "employee_name": "Chofer Uno", "contract_type": None, "rut": None, "email": None, "cargo": None, "cost_center": None}]
     assert assistants.status_code == 200
-    assert assistants.json() == [{"id": assistant_id, "employee_name": "Auxiliar Uno", "contract_type": None, "rut": None, "email": None, "cargo": None}]
+    assert assistants.json() == [{"id": assistant_id, "employee_name": "Auxiliar Uno", "contract_type": None, "rut": None, "email": None, "cargo": None, "cost_center": None}]
 
 
 def test_search_employee_options_use_real_workers_and_filters(client, db_factory):
@@ -477,7 +477,7 @@ def test_search_employee_options_use_real_workers_and_filters(client, db_factory
     )
 
     assert response.status_code == 200
-    assert response.json() == [{"id": driver_id, "employee_name": "Chofer Uno", "contract_type": None, "rut": None, "email": None, "cargo": None}]
+    assert response.json() == [{"id": driver_id, "employee_name": "Chofer Uno", "contract_type": None, "rut": None, "email": None, "cargo": None, "cost_center": None}]
 
     response = client.get(
         "/api/search/employees?cycle_from_id=1&cycle_to_id=1&cost_center=DR&role_type=ASSISTANT",
@@ -485,7 +485,7 @@ def test_search_employee_options_use_real_workers_and_filters(client, db_factory
     )
 
     assert response.status_code == 200
-    assert response.json() == [{"id": assistant_id, "employee_name": "Auxiliar Uno", "contract_type": None, "rut": None, "email": None, "cargo": None}]
+    assert response.json() == [{"id": assistant_id, "employee_name": "Auxiliar Uno", "contract_type": None, "rut": None, "email": None, "cargo": None, "cost_center": None}]
 
 
 def test_search_records_applies_real_filters(client, db_factory):

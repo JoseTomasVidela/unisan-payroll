@@ -1,3 +1,5 @@
+from datetime import date
+
 from conftest import login
 
 
@@ -77,3 +79,144 @@ def test_admin_can_list_roles_and_permissions(client):
     assert "users.manage" in {
         permission["permission_code"] for permission in permissions.json()
     }
+
+
+def test_admin_can_reset_any_user_password(client):
+    admin_token = login(client, "admin", "admin-password")
+    users = client.get(
+        "/api/users",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    ).json()
+    target = next(user for user in users if user["username"] == "consulta")
+
+    response = client.patch(
+        f"/api/users/{target['id']}/password",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"password": "Nueva-clave!"},
+    )
+
+    assert response.status_code == 200
+    assert login(client, "consulta", "Nueva-clave!")
+
+
+def test_admin_can_reset_own_password(client):
+    admin_token = login(client, "admin", "admin-password")
+    users = client.get(
+        "/api/users",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    ).json()
+    target = next(user for user in users if user["username"] == "admin")
+
+    response = client.patch(
+        f"/api/users/{target['id']}/password",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"password": "Admin-nueva!"},
+    )
+
+    assert response.status_code == 200
+    assert login(client, "admin", "Admin-nueva!")
+
+
+def test_rrhh_cannot_reset_password(client):
+    token = login(client, "consulta", "consulta-password")
+
+    response = client.patch(
+        "/api/users/1/password",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"password": "Nueva-clave!"},
+    )
+
+    assert response.status_code == 403
+
+
+def test_admin_can_edit_and_delete_user(client):
+    token = login(client, "admin", "admin-password")
+    headers = {"Authorization": f"Bearer {token}"}
+    created = client.post(
+        "/api/users",
+        headers=headers,
+        json={
+            "username": "editable",
+            "full_name": "Usuario Editable",
+            "password": "Clave-inicial!",
+            "role_name": "OPERATIVO",
+        },
+    ).json()
+
+    updated = client.patch(
+        f"/api/users/{created['id']}",
+        headers=headers,
+        json={
+            "username": "editado",
+            "full_name": "Usuario Modificado",
+            "role_name": "RRHH",
+            "active": False,
+        },
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["username"] == "editado"
+    assert updated.json()["full_name"] == "Usuario Modificado"
+    assert updated.json()["role"] == "RRHH"
+    assert updated.json()["active"] is False
+
+    deleted = client.delete(f"/api/users/{created['id']}", headers=headers)
+    assert deleted.status_code == 204
+    assert created["id"] not in {
+        user["id"] for user in client.get("/api/users", headers=headers).json()
+    }
+
+
+def test_admin_cannot_delete_self(client):
+    token = login(client, "admin", "admin-password")
+    headers = {"Authorization": f"Bearer {token}"}
+    admin = next(
+        user for user in client.get("/api/users", headers=headers).json()
+        if user["username"] == "admin"
+    )
+
+    response = client.delete(f"/api/users/{admin['id']}", headers=headers)
+
+    assert response.status_code == 400
+
+
+def test_audit_is_admin_only_and_lists_actions_for_date(client):
+    admin_token = login(client, "admin", "admin-password")
+    admin_headers = {"Authorization": f"Bearer {admin_token}"}
+    client.post(
+        "/api/users",
+        headers=admin_headers,
+        json={
+            "username": "auditado",
+            "full_name": "Usuario Auditado",
+            "password": "Clave-auditada!",
+            "role_name": "OPERATIVO",
+        },
+    )
+
+    chile_date = date.today().isoformat()
+    response = client.get(
+        f"/api/audit?audit_date={chile_date}",
+        headers=admin_headers,
+    )
+
+    assert response.status_code == 200
+    assert any(
+        item["username"] == "admin" and "Agregó un usuario" in item["action"]
+        for item in response.json()
+    )
+
+    rrhh_token = login(client, "consulta", "consulta-password")
+    forbidden = client.get(
+        f"/api/audit?audit_date={chile_date}",
+        headers={"Authorization": f"Bearer {rrhh_token}"},
+    )
+    assert forbidden.status_code == 403
+
+    exported = client.get(
+        f"/api/audit/export?audit_date={chile_date}",
+        headers=admin_headers,
+    )
+    assert exported.status_code == 200
+    assert exported.headers["content-type"] == "application/pdf"
+    assert exported.content.startswith(b"%PDF-1.4")

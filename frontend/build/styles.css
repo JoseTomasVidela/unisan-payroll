@@ -263,11 +263,89 @@ nav {
     gap: 22px;
 }
 
+.planilla-lock-button {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    background: transparent;
+    color: #ffffff;
+    transition: transform .15s ease, filter .15s ease;
+}
+
+.planilla-lock-button:hover:not(.lock-readonly) {
+    transform: scale(1.06);
+}
+
+.planilla-lock-button.lock-open {
+    color: #9bc53d;
+}
+
+.planilla-lock-button.lock-closed {
+    color: #ff4757;
+}
+
+.planilla-lock-button.lock-readonly {
+    cursor: default;
+}
+
+.lock-state-icon {
+    display: block;
+    width: 30px;
+    height: 30px;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .18));
+}
+
+.lock-state-icon circle {
+    fill: currentColor;
+}
+
+.lock-fill {
+    fill: #ffffff;
+}
+
+.lock-mark {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.lock-open-art,
+.lock-closed-art {
+    display: none;
+}
+
+.lock-open .lock-open-art,
+.lock-closed .lock-closed-art {
+    display: block;
+}
+
 .grid.three {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 22px;
-    align-items: start;
+    align-items: stretch;
+}
+
+.grid.three > .panel {
+    height: 100%;
+}
+
+#dashboard > .grid.three {
+    margin-bottom: 18px;
+}
+
+#dr-import-btn,
+#services-import-btn {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .panel {
@@ -490,6 +568,108 @@ input {
     justify-content: flex-start;
 }
 
+.rates-filter-bar {
+    align-items: flex-end;
+}
+
+.rates-filter-bar label {
+    margin-bottom: 0;
+}
+
+.rate-action-control {
+    display: flex;
+    align-items: flex-end;
+}
+
+.rate-action-control .btn {
+    height: 36px;
+    box-sizing: border-box;
+}
+
+.action-menu { position: relative; }
+.action-menu > summary { list-style: none; cursor: pointer; }
+.action-menu > summary::-webkit-details-marker { display: none; }
+.action-menu > summary::after { content: " ▾"; font-size: 11px; }
+.action-menu-panel {
+    position: absolute;
+    top: calc(100% + 5px);
+    right: 0;
+    z-index: 30;
+    min-width: 185px;
+    padding: 5px;
+    border: 1px solid #cbd6dd;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: 0 8px 22px rgba(27, 53, 68, .18);
+}
+.action-menu-panel button {
+    display: block;
+    width: 100%;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #264757;
+    text-align: left;
+    cursor: pointer;
+}
+.action-menu-panel button:hover:not(:disabled) { background: #eaf4f8; }
+.action-menu-panel button:disabled { color: #9aa9b1; cursor: not-allowed; }
+
+#search-btn,
+#search-export-menu,
+#search-email-menu {
+    width: 150px;
+}
+
+.search-filter-panel .actions {
+    margin-top: 12px;
+}
+
+#search-btn,
+#search-export-menu > summary,
+#search-email-menu > summary {
+    height: 36px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 18px;
+}
+
+#search-export-menu > summary,
+#search-email-menu > summary {
+    width: 100%;
+}
+
+.ipc-history {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.ipc-history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 10px 12px;
+    border-left: 5px solid #4aa3c7;
+    border-radius: 5px;
+    background: #edf6fa;
+}
+
+.ipc-history-item > div:first-child {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.ipc-history-item small { color: #607985; }
+
 .search-grid,
 .form-grid {
     display: grid;
@@ -559,6 +739,16 @@ input {
     font-weight: 700;
 }
 
+.checklist-item-filter {
+    padding-left: 18px;
+    color: #31566b;
+}
+
+.checklist-item-filter:nth-of-type(3) {
+    padding-bottom: 6px;
+    border-bottom: 1px solid #e7edf1;
+}
+
 .checklist-empty {
     color: #7f8c96;
     font-style: italic;
@@ -577,7 +767,7 @@ input.checklist-summary {
 .result-stack {
     display: grid;
     gap: 16px;
-    padding: 16px;
+    padding: 0;
 }
 
 .stack-cycle-group {
@@ -618,10 +808,9 @@ input.checklist-summary {
 
 .holiday-panel {
     display: grid;
-    gap: 10px;
-    min-height: 166px;
-    padding-top: 10px;
-    padding-bottom: 10px;
+    gap: 4px;
+    padding-top: 6px;
+    padding-bottom: 6px;
 }
 
 .holiday-toolbar {
@@ -631,28 +820,40 @@ input.checklist-summary {
     gap: 6px;
 }
 
+#holiday-month-label {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.2;
+}
+
 .holiday-calendar {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 4px;
+    gap: 3px;
 }
 
 .holiday-weekday,
 .holiday-day {
-    border-radius: 6px;
+    border-radius: 5px;
     border: 1px solid #d9e0e6;
     background: #fff;
-    padding: 4px;
-    min-height: 40px;
+    box-sizing: border-box;
+    padding: 1px 2px;
+    height: 22px;
+    min-height: 22px;
 }
 
 .holiday-weekday {
-    min-height: auto;
+    height: 20px;
+    min-height: 20px;
     text-align: center;
     font-size: 11px;
     font-weight: 700;
     background: #f3f7fa;
-    padding: 5px 2px;
+    padding: 3px 2px;
 }
 
 .holiday-day.empty {
@@ -664,7 +865,7 @@ input.checklist-summary {
     font-size: 12px;
     font-weight: 700;
     color: #31414f;
-    margin-bottom: 2px;
+    margin-bottom: 0;
 }
 
 .holiday-day.holiday-active {
@@ -680,12 +881,12 @@ input.checklist-summary {
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 12px;
+    min-height: 5px;
 }
 
 .holiday-badge {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     padding: 0;
     background: #c9b15f;
@@ -743,13 +944,15 @@ input.checklist-summary {
 }
 
 .spreadsheet {
-    overflow-x: auto;
-    overflow-y: visible;
+    overflow: auto;
+    max-height: calc(100vh - 190px);
     border: 1px solid #111;
     background: white;
 }
 
 .sheet-table {
+    border-top: 1px solid #111;
+    border-left: 1px solid #111;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 12px;
@@ -780,6 +983,8 @@ input.checklist-summary {
     text-align: left;
     min-width: 225px;
     max-width: 225px;
+    border-left: 1px solid #111;
+    box-shadow: inset -1px 0 #111;
 }
 
 .sheet-table .units {
@@ -789,6 +994,7 @@ input.checklist-summary {
     min-width: 82px;
     background: #9dc3e6;
     font-weight: 700;
+    box-shadow: inset -1px 0 #111;
 }
 
 .sheet-table .rate {
@@ -797,6 +1003,7 @@ input.checklist-summary {
     z-index: 4;
     min-width: 54px;
     background: #d9d9d9;
+    box-shadow: inset -1px 0 #111;
 }
 
 .sheet-table .total {
@@ -806,6 +1013,7 @@ input.checklist-summary {
     min-width: 78px;
     background: #d9d9d9;
     font-weight: 700;
+    box-shadow: inset -1px 0 #111;
 }
 
 .sheet-table thead .fixed,
@@ -815,13 +1023,81 @@ input.checklist-summary {
     z-index: 7;
 }
 
+/* Mantiene visibles Fecha, Dia y Estado durante el desplazamiento vertical. */
+.sheet-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    box-shadow: 0 -24px 0 24px #fff;
+}
+
+.sheet-table thead tr:first-child > th {
+    height: 82px;
+    box-sizing: border-box;
+}
+
+.sheet-table thead tr:nth-child(2) > th {
+    height: 34px;
+    box-sizing: border-box;
+}
+
+.sheet-table thead tr.status-row > th {
+    height: 95px;
+    box-sizing: border-box;
+    background: #bdd7ee;
+    border-bottom: 2px solid #111;
+}
+
+.sheet-table thead tr > .fixed,
+.sheet-table thead tr > .units,
+.sheet-table thead tr > .rate,
+.sheet-table thead tr > .total,
+.sheet-table thead tr.status-row > .fixed,
+.sheet-table thead tr.status-row > .units,
+.sheet-table thead tr.status-row > .rate,
+.sheet-table thead tr.status-row > .total {
+    z-index: 10;
+}
+
 .sheet-table .date-head,
 .sheet-table .status-head {
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-    min-width: 31px;
+    width: 58px;
+    min-width: 58px;
+    max-width: 58px;
+    box-sizing: border-box;
     background: #bdd7ee;
     font-weight: 800;
+    font-family: "Segoe UI", Calibri, sans-serif;
+    font-size: 11px;
+    letter-spacing: .15px;
+    overflow: hidden;
+}
+
+.sheet-table .vertical-label,
+.sheet-table .status-input {
+    display: inline-block;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font-family: "Segoe UI", Calibri, sans-serif;
+}
+
+.sheet-table th:nth-child(n+5),
+.sheet-table td:nth-child(n+5) {
+    width: 58px;
+    min-width: 58px;
+    max-width: 58px;
+    box-sizing: border-box;
+}
+
+.worker-heading span,
+.worker-heading small {
+    display: block;
+}
+
+.worker-heading small {
+    margin-top: 5px;
+    font-size: 10px;
+    font-weight: 600;
 }
 
 .sheet-table .date-head { height: 82px; }
@@ -830,6 +1106,25 @@ input.checklist-summary {
 .sheet-table .holiday-head,
 .sheet-table .holiday-cell {
     background: #fff6dc;
+}
+
+.sheet-table .weekend-head,
+.sheet-table .weekend-cell {
+    background: #fff6dc;
+}
+
+.sheet-table thead tr.status-row > th.holiday-head,
+.sheet-table thead tr.status-row > th.weekend-head {
+    background: #fff6dc;
+}
+
+.sheet-table thead tr.status-row > th.missing-status-head {
+    background: #f8cccc;
+}
+
+.sheet-table .missing-status-head,
+.sheet-table .missing-status-cell {
+    background: #f8cccc;
 }
 
 .sheet-table .blue { background: #bdd7ee; }
@@ -888,6 +1183,98 @@ input.checklist-summary {
 
 .modal-box.extra-wide {
     width: min(1320px, 97vw);
+}
+
+#user-password-modal .modal-box {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: min(520px, 92vw);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+#user-password-modal h2,
+#user-password-modal p {
+    margin: 0;
+}
+
+#user-password-modal .form-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+#user-password-modal .form-grid label,
+#user-password-modal .form-grid input,
+#user-password-modal .form-grid select {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+#user-password-modal .actions {
+    margin-top: 2px;
+    align-items: center;
+}
+
+.user-password-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 14px;
+    border-top: 1px solid #d8e0e6;
+}
+
+.user-password-section h3 {
+    margin: 0;
+}
+
+.user-password-section > .btn {
+    align-self: flex-start;
+}
+
+.user-edit-actions .action-spacer {
+    flex: 1;
+}
+
+.btn.danger {
+    background: #c94b4b;
+    color: #fff;
+}
+
+.btn.danger:hover {
+    background: #ae3939;
+}
+
+.audit-filter {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.audit-filter label {
+    width: 220px;
+    margin-bottom: 0;
+}
+
+.audit-filter input {
+    width: 100%;
+    height: 40px;
+    box-sizing: border-box;
+}
+
+.audit-filter > .btn {
+    height: 40px;
+    box-sizing: border-box;
+    align-self: flex-end;
+}
+
+.audit-table th:nth-child(1) { width: 260px; }
+.audit-table th:nth-child(2) { width: 180px; }
+.audit-table th:nth-child(1),
+.audit-table td:nth-child(1) {
+    white-space: nowrap;
 }
 
 .status-modal-box {

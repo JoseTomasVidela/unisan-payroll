@@ -41,6 +41,8 @@ def send_settlement_email(
     recipient_name: str,
     pdf_content: bytes,
     pdf_file_name: str,
+    subject: str = "Liquidación - Unisan Payroll",
+    body: str = "este es un correo de prueba de Unisan Payroll",
 ) -> str:
     username = settings.smtp_username
     password = settings.smtp_password
@@ -53,8 +55,8 @@ def send_settlement_email(
     message = EmailMessage()
     message["From"] = sender
     message["To"] = recipient
-    message["Subject"] = "Liquidación - Unisan Payroll"
-    message.set_content("este es un correo de prueba de Unisan Payroll")
+    message["Subject"] = subject
+    message.set_content(body)
     message.add_attachment(
         pdf_content,
         maintype="application",

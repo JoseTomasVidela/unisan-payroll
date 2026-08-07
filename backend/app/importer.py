@@ -509,6 +509,7 @@ def persist_import(
             employee = Employee(
                 employee_name=values["source_employee_name"],
                 role_type=values["role_type"],
+                cost_center=values["cost_center"],
                 contract_type=contract_map.get(values["source_employee_name"].casefold()),
             )
             db.add(employee)
@@ -516,6 +517,8 @@ def persist_import(
             employees.append(employee)
             contract_map.setdefault(values["source_employee_name"].casefold(), employee.contract_type)
             created_employees += 1
+        elif employee.cost_center is None:
+            employee.cost_center = values["cost_center"]
         db.add(
             PayrollRecord(
                 **values,

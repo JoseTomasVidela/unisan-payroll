@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS payroll_employees (
     id BIGINT NOT NULL AUTO_INCREMENT,
     employee_name VARCHAR(180) NOT NULL,
     role_type VARCHAR(32) NOT NULL,
+    cost_center VARCHAR(32) NULL,
     contract_type VARCHAR(16) NULL,
     PRIMARY KEY (id),
     KEY ix_payroll_employees_employee_name (employee_name),
