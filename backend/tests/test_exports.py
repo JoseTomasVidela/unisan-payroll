@@ -4,6 +4,8 @@ from decimal import Decimal
 from io import BytesIO
 from zipfile import ZipFile
 
+from openpyxl import load_workbook
+
 from sqlalchemy import select
 
 from app.models import Employee, PayrollExportLog, PayrollManualAdjustment
@@ -42,13 +44,43 @@ def test_export_individual_liquidation_excel(client, db_factory):
 
     archive = ZipFile(BytesIO(response.content))
     worksheet_xml = archive.read("xl/worksheets/sheet1.xml").decode("utf-8")
-    assert "Trabajador" in worksheet_xml
-    assert "Chofer Uno" in worksheet_xml
+    assert "TRABAJADOR: Chofer Uno" in worksheet_xml
+    assert "Ciclo</t>" not in worksheet_xml
+    assert "Centro</t>" not in worksheet_xml
+    assert "Vista</t>" not in worksheet_xml
     assert "Actividad" in worksheet_xml
     assert "Tarifa" in worksheet_xml
     assert "Evento" in worksheet_xml
     assert "TOTAL A PAGAR" in worksheet_xml
     assert "PRODUCCION TOTAL" in worksheet_xml
+
+
+def test_export_visible_liquidations_in_one_excel_sheet(client, db_factory):
+    driver_id, assistant_id = seed_settlement(db_factory)
+    response = client.get(
+        f"/api/exports/settlements.xlsx?items=1:{driver_id},1:{assistant_id}",
+        headers=admin_headers(client),
+    )
+    assert response.status_code == 200
+    assert 'filename="Liquidaciones seleccionadas.xlsx"' in response.headers["content-disposition"]
+    archive = ZipFile(BytesIO(response.content))
+    worksheet_xml = archive.read("xl/worksheets/sheet1.xml").decode("utf-8")
+    workbook_xml = archive.read("xl/workbook.xml").decode("utf-8")
+    assert "TRABAJADOR: Chofer Uno" in worksheet_xml
+    assert "TRABAJADOR: Auxiliar Uno" in worksheet_xml
+    assert worksheet_xml.index("TRABAJADOR: Chofer Uno") < worksheet_xml.index("TRABAJADOR: Auxiliar Uno")
+    assert workbook_xml.count("<sheet ") == 1
+    workbook = load_workbook(BytesIO(response.content))
+    worksheet = workbook.active
+    title_rows = [
+        row
+        for row in range(1, worksheet.max_row + 1)
+        if str(worksheet.cell(row, 1).value or "").startswith("TRABAJADOR:")
+    ]
+    assert len(title_rows) == 2
+    assert worksheet.cell(title_rows[0], 1).fill.fgColor.rgb == "0029405A"
+    assert worksheet.cell(title_rows[0], 1).border.left.style == "medium"
+    assert worksheet.cell(title_rows[1], 1).border.left.style == "medium"
 
 
 def test_export_individual_liquidation_csv(client, db_factory):
@@ -86,6 +118,18 @@ def test_export_individual_liquidation_pdf(client, db_factory):
                 amount=Decimal("2000"),
             )
         )
+        db.add(
+            PayrollManualAdjustment(
+                cycle_id=1,
+                employee_id=driver_id,
+                cost_center="ALL",
+                role_type="ALL",
+                adjustment_type="EVENT_BONUS",
+                adjustment_name="Bono Evento",
+                units=Decimal("1"),
+                amount=Decimal("20"),
+            )
+        )
         db.commit()
 
     response = client.get(
@@ -107,10 +151,32 @@ def test_export_individual_liquidation_pdf(client, db_factory):
     assert b"DESCRIPCION" in response.content
     assert b"A PAGAR" in response.content
     assert b"SEMANA CORRIDA" in response.content
+    assert b"UNIBOX" in response.content
     assert b"BONO EXPORTADO" in response.content
     assert b"6.000" in response.content
     assert b"TOTAL" in response.content
     assert b"FIRMA TRABAJADOR" in response.content
+
+
+def test_pdf_always_displays_unibox_even_without_matching_activity():
+    from app.exporter import export_pdf_bytes
+
+    pdf = export_pdf_bytes({
+        "employee": {"employee_name": "Sin Unibox", "rut": ""},
+        "cycle": {"cycle_name": "Ciclo Junio 2026"},
+        "rows": [{
+            "row_type": "adjustment_production_bonus",
+            "concept_code": "ADJUSTMENT_PRODUCTION_BONUS",
+            "concept_name": "Bono Producción - prueba texto",
+            "units": Decimal("2"),
+            "rate": Decimal("2000"),
+            "total": Decimal("4000"),
+        }],
+        "total_to_pay": Decimal("0"),
+        "production_total": Decimal("4000"),
+    })
+
+    assert b"UNIBOX" in pdf
 
 
 def test_export_from_search_uses_consolidated_scope_and_logs(client, db_factory):
@@ -217,6 +283,16 @@ def test_export_softland_cycle_has_exact_columns_order_and_aggregates(client, db
                     units=Decimal("1"),
                     amount=Decimal("30"),
                 ),
+                PayrollManualAdjustment(
+                    cycle_id=1,
+                    employee_id=driver_id,
+                    cost_center="ALL",
+                    role_type="ALL",
+                    adjustment_type="VACATION_BONUS",
+                    adjustment_name="Bono Vacaciones",
+                    units=Decimal("1"),
+                    amount=Decimal("40"),
+                ),
             ]
         )
         db.commit()
@@ -243,7 +319,7 @@ def test_export_softland_cycle_has_exact_columns_order_and_aggregates(client, db
     assert "06/2026" in worksheet_xml
     assert "<v>150</v>" in worksheet_xml  # H008: 50 de producción + 100 de bono.
     assert "<v>45</v>" in worksheet_xml  # H022: 25 de eventos + 20 de bono evento.
-    assert "<v>30</v>" in worksheet_xml
+    assert "<v>70</v>" in worksheet_xml  # H040: vacaciones + bono vacaciones.
     assert "<v>0</v>" not in worksheet_xml
 
     with db_factory() as db:

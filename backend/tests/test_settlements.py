@@ -15,6 +15,7 @@ from app.models import (
     PayrollCycle,
     PayrollHoliday,
     PayrollManualAdjustment,
+    PayrollLiquidationActivity,
     PayrollImport,
     PayrollRecord,
     User,
@@ -230,6 +231,68 @@ def test_settlement_marks_holiday_dates_and_uses_them_for_week_corrida(client, d
     assert Decimal(body["week_corrida"]) == Decimal("25")
 
 
+def test_create_empty_liquidation_filters_workers_and_selected_activities(client, db_factory):
+    seed_settlement(db_factory)
+    with db_factory() as db:
+        admin = db.scalar(select(User).where(User.username == "admin"))
+        worker = Employee(employee_name="Trabajador Sin Planilla", contract_type="OLD", role_type="DRIVER")
+        db.add(worker)
+        db.flush()
+        event = db.scalar(select(PayrollConcept).where(PayrollConcept.concept_code == "EVENT"))
+        worker_id = worker.id
+        event_id = event.id
+        db.commit()
+
+    headers = auth_headers(client)
+    available = client.get("/api/liquidations/new/workers?cycle_id=1", headers=headers)
+    assert available.status_code == 200
+    assert [row["employee_name"] for row in available.json()] == ["Trabajador Sin Planilla"]
+
+    activities = client.get(
+        f"/api/liquidations/new/activities?cycle_id=1&employee_id={worker_id}",
+        headers=headers,
+    )
+    assert activities.status_code == 200
+    assert {row["concept_name"] for row in activities.json()} == {"Evento", "Despacho / Retiro"}
+
+    created = client.post(
+        "/api/liquidations/new",
+        headers=headers,
+        json={
+            "cycle_id": 1,
+            "employee_id": worker_id,
+            "concept_ids": [event_id],
+        },
+    )
+    assert created.status_code == 201
+    concept_rows = [row for row in created.json()["rows"] if row["row_type"] == "concept"]
+    assert [row["label"] for row in concept_rows] == ["Evento"]
+    assert Decimal(concept_rows[0]["rate"]) == Decimal("5")
+
+    search_workers = client.get(
+        "/api/search/employees?cycle_from_id=1&cycle_to_id=1",
+        headers=headers,
+    )
+    assert search_workers.status_code == 200
+    assert "Trabajador Sin Planilla" in {row["employee_name"] for row in search_workers.json()}
+    with db_factory() as db:
+        mappings = list(db.scalars(select(PayrollLiquidationActivity).where(
+            PayrollLiquidationActivity.employee_id == worker_id
+        )).all())
+        assert [row.concept_id for row in mappings] == [event_id]
+
+    duplicate = client.post(
+        "/api/liquidations/new",
+        headers=headers,
+        json={
+            "cycle_id": 1,
+            "employee_id": worker_id,
+            "concept_ids": [event_id],
+        },
+    )
+    assert duplicate.status_code == 409
+
+
 def test_cycle_start_worked_day_adds_missing_weekdays_even_when_first_day_has_zero_variable(client, db_factory):
     with db_factory() as db:
         admin = db.scalar(select(User).where(User.username == "admin"))
@@ -327,10 +390,12 @@ def test_cycle_start_worked_day_adds_missing_weekdays_even_when_first_day_has_ze
         ("Licencia", Decimal("5"), Decimal("0")),
         ("Vacaciones", Decimal("5"), Decimal("0")),
         ("Libre compensatorio", Decimal("5"), Decimal("0")),
+        ("Cumpleaños", Decimal("5"), Decimal("0")),
         ("Descanso", Decimal("5"), Decimal("0")),
         ("Feriado", Decimal("0"), Decimal("0")),
         ("Feriado", Decimal("3"), Decimal("1")),
         ("Inasistencia", Decimal("0"), Decimal("1")),
+        ("Permiso", Decimal("0"), Decimal("1")),
         ("Sin Producción", Decimal("0"), Decimal("1")),
     ],
 )

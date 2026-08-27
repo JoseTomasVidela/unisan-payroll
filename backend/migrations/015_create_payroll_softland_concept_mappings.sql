@@ -163,7 +163,7 @@ VALUES
         'ADJUSTMENT',
         'VACATION_BONUS',
         'Bono Vacaciones',
-        'H008',
+        'H040',
         1,
         CURRENT_TIMESTAMP,
         CURRENT_TIMESTAMP

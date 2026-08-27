@@ -32,6 +32,9 @@ REQUIRED_PRODUCTION_TABLES = frozenset(
         "payroll_cell_overrides",
         "payroll_audit_log",
         "payroll_export_logs",
+        "payroll_cost_centers",
+        "payroll_adjustment_types",
+        "payroll_liquidation_activities",
     }
 )
 
@@ -206,6 +209,15 @@ REQUIRED_TABLE_COLUMNS = {
             "created_at",
             "updated_at",
         }
+    ),
+    "payroll_cost_centers": frozenset(
+        {"code", "name", "active", "created_by", "created_at"}
+    ),
+    "payroll_adjustment_types": frozenset(
+        {"code", "name", "worked_day_value", "active", "created_by", "created_at"}
+    ),
+    "payroll_liquidation_activities": frozenset(
+        {"cycle_id", "employee_id", "concept_id", "created_by", "created_at"}
     ),
 }
 

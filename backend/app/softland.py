@@ -30,7 +30,7 @@ SPECIAL_MAPPINGS = {
     ("ADJUSTMENT", "OUT_OF_PRODUCTION_BONUS"): ("Bono fuera de producción", "H008"),
     ("ADJUSTMENT", "BONUS"): ("Bono", "H008"),
     ("ADJUSTMENT", "PRODUCTION_BONUS"): ("Bono Producción", "H008"),
-    ("ADJUSTMENT", "VACATION_BONUS"): ("Bono Vacaciones", "H008"),
+    ("ADJUSTMENT", "VACATION_BONUS"): ("Bono Vacaciones", "H040"),
     ("ADJUSTMENT", "EVENT_BONUS"): ("Bono Evento", "H022"),
     ("ADJUSTMENT", "VACATION"): ("VACACIONES", "H040"),
 }

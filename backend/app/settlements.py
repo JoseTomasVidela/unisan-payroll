@@ -16,6 +16,8 @@ from .models import (
     Employee,
     PayrollConcept,
     PayrollAuditLog,
+    PayrollAdjustmentType,
+    PayrollLiquidationActivity,
     PayrollCycle,
     PayrollManualAdjustment,
     PayrollRecord,
@@ -67,20 +69,24 @@ WORKED_DAY_ZERO_STATUSES = {
     "licencia",
     "vacaciones",
     "libre compensatorio",
+    "cumpleanos",
     "descanso",
 }
 WORKED_DAY_ONE_STATUSES = {
     "sin produccion",
     "inasistencia",
+    "permiso",
 }
 EDITABLE_STATUSES = {
     "ok": "OK",
     "licencia": "Licencia",
     "vacaciones": "Vacaciones",
     "libre compensatorio": "Libre compensatorio",
+    "cumpleanos": "Cumpleaños",
     "descanso": "Descanso",
     "feriado": "Feriado",
     "inasistencia": "Inasistencia",
+    "permiso": "Permiso",
     "sin produccion": "Sin producción",
 }
 
@@ -249,6 +255,14 @@ class SettlementEngine:
                 .order_by(PayrollConcept.display_order, PayrollConcept.id)
             ).all()
         )
+        selected_concept_ids = set(db.scalars(
+            select(PayrollLiquidationActivity.concept_id).where(
+                PayrollLiquidationActivity.cycle_id == cycle_id,
+                PayrollLiquidationActivity.employee_id.in_(employee_ids),
+            )
+        ).all())
+        if selected_concept_ids:
+            concepts = [item for item in concepts if item.id in selected_concept_ids]
         dates = inclusive_dates(cycle.start_date, cycle.end_date)
         records_by_date: dict[date, list[PayrollRecord]] = defaultdict(list)
         for record in records:
@@ -413,6 +427,14 @@ class SettlementEngine:
                 )
             ).all()
         )
+        selected_concept_ids = set(db.scalars(
+            select(PayrollLiquidationActivity.concept_id).where(
+                PayrollLiquidationActivity.cycle_id == cycle_id,
+                PayrollLiquidationActivity.employee_id.in_(employee_ids),
+            )
+        ).all())
+        if selected_concept_ids:
+            concepts = [item for item in concepts if item.id in selected_concept_ids]
         dates = inclusive_dates(cycle.start_date, cycle.end_date)
         records_by_context_date: dict[tuple[str, str, date], list[PayrollRecord]] = defaultdict(list)
         for record in records:
@@ -451,7 +473,7 @@ class SettlementEngine:
                 ZERO,
             ),
             rates=rates,
-            include_empty=False,
+            include_empty=bool(selected_concept_ids),
             display_name=self._display_name_for_concept,
         )
         statuses = []
@@ -583,11 +605,20 @@ class SettlementEngine:
             adjustment.id: (adjustment.units or Decimal("1")) * adjustment.amount
             for adjustment in adjustments
         }
+        production_adjustment_types = PRODUCTION_ADJUSTMENT_TYPES | {
+            item.code
+            for item in db.scalars(
+                select(PayrollAdjustmentType).where(
+                    PayrollAdjustmentType.active.is_(True),
+                    PayrollAdjustmentType.worked_day_value == 1,
+                )
+            ).all()
+        }
         adjustments_total = sum(
             (
                 adjustment_line_totals[adjustment.id]
                 for adjustment in adjustments
-                if adjustment.adjustment_type in PRODUCTION_ADJUSTMENT_TYPES
+                if adjustment.adjustment_type in production_adjustment_types
             ),
             ZERO,
         )
@@ -708,6 +739,13 @@ class SettlementEngine:
         related_employee_ids = [item.id for item in db.scalars(select(Employee).order_by(Employee.id)).all()
                                 if names_refer_to_same_person(item.employee_name, employee.employee_name)]
         try:
+            mapped_concept_ids = set(db.scalars(
+                select(PayrollLiquidationActivity.concept_id).where(
+                    PayrollLiquidationActivity.cycle_id == cycle_id,
+                    PayrollLiquidationActivity.employee_id.in_(related_employee_ids),
+                )
+            ).all())
+            manual_liquidation = bool(mapped_concept_ids)
             for concept_id, work_date, value in updates:
                 concept = db.get(PayrollConcept, concept_id)
                 if concept is None:
@@ -722,6 +760,14 @@ class SettlementEngine:
                     raise ValueError("El concepto apunta a un campo reservado o invalido.")
                 if work_date < cycle.start_date or work_date > cycle.end_date:
                     raise ValueError("La fecha no pertenece al ciclo seleccionado.")
+                if manual_liquidation and concept_id not in mapped_concept_ids:
+                    db.add(PayrollLiquidationActivity(
+                        cycle_id=cycle_id,
+                        employee_id=employee_id,
+                        concept_id=concept_id,
+                        created_by=user_id,
+                    ))
+                    mapped_concept_ids.add(concept_id)
                 records = list(
                     db.scalars(
                         select(PayrollRecord)
@@ -967,6 +1013,7 @@ class SettlementEngine:
         if variable_amount < Decimal("1"):
             return ZERO
         return Decimal("1")
+
 
     @staticmethod
     def _normalize_status(status: str | None) -> str:

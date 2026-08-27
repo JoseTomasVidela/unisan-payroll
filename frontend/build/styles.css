@@ -348,6 +348,139 @@ nav {
     margin-right: auto;
 }
 
+.catalog-create-form {
+    display: grid;
+    grid-template-columns: minmax(180px, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 18px;
+}
+
+.catalog-create-form.adjustment-catalog-form {
+    grid-template-columns: minmax(170px, 1fr) minmax(170px, auto) auto;
+}
+
+.catalog-create-form input,
+.catalog-create-form select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.catalog-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 36px;
+}
+
+.catalog-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 10px;
+    border: 1px solid #d8e0e8;
+    border-radius: 4px;
+    background: #f8fafc;
+}
+
+.catalog-list-item span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.new-liquidation-modal-box {
+    width: min(760px, 94vw) !important;
+    max-height: 92vh;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.new-liquidation-list {
+    border: 1px solid #ccd6df;
+    border-radius: 4px;
+    background: white;
+    max-height: 180px;
+    overflow: auto;
+}
+
+.new-liquidation-list.compact-list {
+    max-height: 120px;
+}
+
+.new-liquidation-list.activities-list {
+    height: min(260px, 30vh);
+    min-height: 180px;
+    max-height: 260px;
+    flex: 0 0 auto;
+}
+
+.new-liquidation-list label {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    align-items: center;
+    gap: 9px;
+    padding: 9px 12px;
+    border-bottom: 1px solid #edf1f4;
+    cursor: pointer;
+    text-align: left;
+}
+
+.new-liquidation-list label input[type="checkbox"] {
+    appearance: auto;
+    width: 16px;
+    height: 16px;
+    min-width: 16px;
+    margin: 0;
+    padding: 0;
+}
+
+.new-liquidation-list label span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.new-liquidation-list label:last-child {
+    border-bottom: 0;
+}
+
+.new-liquidation-list label:hover {
+    background: #edf5fa;
+}
+
+.new-liquidation-list .muted,
+.new-liquidation-list .new-liquidation-muted {
+    display: block;
+    padding: 12px;
+}
+
+.new-liquidation-worker-picker input {
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 6px;
+}
+
+#new-liquidation-activity-search {
+    width: 100%;
+    height: 44px;
+    min-height: 44px;
+    flex: 0 0 44px;
+    box-sizing: border-box;
+    margin-bottom: 6px;
+    padding: 10px 12px;
+    font-size: 16px;
+}
+
+@media (max-width: 900px) {
+    .catalog-create-form,
+    .catalog-create-form.adjustment-catalog-form {
+        grid-template-columns: 1fr;
+    }
+}
+
 .panel {
     background: white;
     border-radius: 4px;
@@ -950,12 +1083,132 @@ input.checklist-summary {
     background: white;
 }
 
+.sheet-zoom-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    margin-left: auto;
+    border: 1px solid #b8c5d1;
+    border-radius: 4px;
+    overflow: hidden;
+    background: white;
+    flex-shrink: 0;
+}
+
+.sheet-zoom-controls button {
+    height: 30px;
+    border: 0;
+    border-right: 1px solid #d6dee6;
+    background: white;
+    color: #29405a;
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.sheet-zoom-controls button:last-child {
+    border-right: 0;
+}
+
+.sheet-zoom-controls button:hover {
+    background: #edf4f8;
+}
+
+.sheet-zoom-btn {
+    width: 34px;
+    font-size: 18px;
+}
+
+.sheet-zoom-value {
+    min-width: 58px;
+    padding: 0 8px;
+    font-size: 12px;
+}
+
+body.sheet-fullscreen-open {
+    overflow: hidden;
+}
+
+.sheet-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 3000 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    display: flex !important;
+    flex-direction: column;
+    background: white;
+}
+
+.sheet-fullscreen > .panel-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.sheet-fullscreen .spreadsheet {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+}
+
+.sheet-fullscreen .settlement-meta {
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+    gap: 8px;
+    min-height: 40px;
+    margin: 0;
+    padding: 5px 8px;
+    font-size: 12px;
+    border-width: 0 0 1px;
+}
+
+.sheet-fullscreen .settlement-meta > span {
+    display: none;
+}
+
+.sheet-fullscreen .settlement-meta > strong {
+    flex: 1;
+    min-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sheet-fullscreen > .panel-title,
+.sheet-fullscreen#liquidation-sheet-panel .toolbar {
+    display: none;
+}
+
+.sheet-fullscreen > .panel-body {
+    padding: 0;
+}
+
+.sheet-fullscreen .btn.small-btn {
+    min-height: 28px;
+    padding: 4px 9px;
+    font-size: 12px;
+}
+
+.fullscreen-only {
+    display: none;
+}
+
+.sheet-fullscreen .fullscreen-only {
+    display: inline-flex;
+}
+
 .sheet-table {
     border-top: 1px solid #111;
     border-left: 1px solid #111;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 12px;
+    zoom: var(--sheet-zoom, 1);
     min-width: 1480px;
     width: max-content;
 }

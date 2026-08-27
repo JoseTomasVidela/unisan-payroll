@@ -80,6 +80,15 @@ const searchEmployee = document.getElementById("search-employee");
 const searchCycleSummary = document.getElementById("search-cycle-summary");
 const searchEmployeeSummary = document.getElementById("search-employee-summary");
 const searchBtn = document.getElementById("search-btn");
+const newLiquidationBtn = document.getElementById("new-liquidation-btn");
+const newLiquidationModal = document.getElementById("new-liquidation-modal");
+const newLiquidationCycle = document.getElementById("new-liquidation-cycle");
+const newLiquidationWorkerSearch = document.getElementById("new-liquidation-worker-search");
+const newLiquidationWorkers = document.getElementById("new-liquidation-workers");
+const newLiquidationActivitySearch = document.getElementById("new-liquidation-activity-search");
+const newLiquidationActivities = document.getElementById("new-liquidation-activities");
+const newLiquidationCancelBtn = document.getElementById("new-liquidation-cancel-btn");
+const newLiquidationCreateBtn = document.getElementById("new-liquidation-create-btn");
 const searchEditBtn = document.getElementById("search-edit-btn");
 const searchAdjustmentsBtn = document.getElementById("search-adjustments-btn");
 const searchSaveBtn = document.getElementById("search-save-btn");
@@ -199,6 +208,81 @@ let selectedAdjustmentId = null;
 let originalManualAdjustments = [];
 let deletedAdjustmentIds = [];
 let nextTemporaryAdjustmentId = -1;
+let costCentersCatalog = [];
+let adjustmentTypesCatalog = [];
+let newLiquidationWorkersCache = [];
+let newLiquidationActivitiesCache = [];
+let selectedNewLiquidationActivityIds = [];
+const sheetZoomLevels = new Map([
+    ["spreadsheet", 100],
+    ["spreadsheet-search", 100],
+    ["search-edit-spreadsheet", 100]
+]);
+
+function setSheetZoom(targetId, requestedPercent) {
+    const container = document.getElementById(targetId);
+    if (!container) return;
+    const previous = sheetZoomLevels.get(targetId) || 100;
+    const percent = Math.max(50, Math.min(150, requestedPercent));
+    const ratio = percent / previous;
+    const previousLeft = container.scrollLeft;
+    const previousTop = container.scrollTop;
+    sheetZoomLevels.set(targetId, percent);
+    container.style.setProperty("--sheet-zoom", String(percent / 100));
+    container.scrollLeft = previousLeft * ratio;
+    container.scrollTop = previousTop * ratio;
+    document.querySelectorAll(`.sheet-zoom-controls[data-zoom-target="${targetId}"] .sheet-zoom-value`)
+        .forEach(label => { label.textContent = `${percent}%`; });
+}
+
+document.addEventListener("click", event => {
+    const button = event.target.closest("[data-zoom-action]");
+    if (!button) return;
+    const controls = button.closest(".sheet-zoom-controls");
+    if (!controls) return;
+    const targetId = controls.dataset.zoomTarget;
+    const current = sheetZoomLevels.get(targetId) || 100;
+    const action = button.dataset.zoomAction;
+    setSheetZoom(targetId, action === "reset" ? 100 : current + (action === "in" ? 10 : -10));
+});
+
+function exitSheetFullscreen() {
+    const active = document.querySelector(".sheet-fullscreen");
+    if (!active) return;
+    active.classList.remove("sheet-fullscreen");
+    active.querySelectorAll(".sheet-fullscreen-btn").forEach(button => {
+        button.textContent = "Pantalla completa";
+    });
+    document.body.classList.remove("sheet-fullscreen-open");
+}
+
+function enterSheetFullscreen(target) {
+    if (!target) return;
+    exitSheetFullscreen();
+    target.classList.add("sheet-fullscreen");
+    target.querySelectorAll(".sheet-fullscreen-btn").forEach(item => {
+        item.textContent = "Vista normal";
+    });
+    document.body.classList.add("sheet-fullscreen-open");
+}
+
+document.addEventListener("click", event => {
+    const button = event.target.closest(".sheet-fullscreen-btn");
+    if (!button) return;
+    const target = document.getElementById(button.dataset.fullscreenTarget);
+    if (!target) return;
+    if (target.classList.contains("sheet-fullscreen")) {
+        exitSheetFullscreen();
+        return;
+    }
+    enterSheetFullscreen(target);
+});
+
+document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && document.querySelector(".sheet-fullscreen")) {
+        exitSheetFullscreen();
+    }
+});
 let contextEmployeesCache = [];
 let searchEmployeesCache = [];
 let searchEmployeeCostCenterFilter = "ALL";
@@ -313,13 +397,19 @@ function adjustmentTypeLabel(value) {
     return adjustmentTypeLabels[value] || value || "";
 }
 
+function costCenterLabel(code) {
+    return costCentersCatalog.find(item => item.code === code)?.name || code || "Sin definir";
+}
+
 function formatStatusLabel(value) {
     if (!value) return "";
     const labels = {
         "libre compensatorio": "Libre Comp.",
+        "cumpleaños": "Cumpleaños",
         "sin produccion": "Sin Prod.",
         "sin producción": "Sin Prod.",
         "inasistencia": "Inasis.",
+        "permiso": "Permiso",
         "vacaciones": "Vac.",
         "descanso": "Desc.",
         "feriado": "Feriado",
@@ -564,6 +654,7 @@ async function refreshDisplayedSettlementsForHolidayChange() {
 
 async function loadDashboard() {
     await loadOperationsEditLock();
+    await loadPayrollCatalogs();
     const canImport = hasPermission("payroll.import");
     drImportPanel?.classList.toggle("hidden", !canImport);
     servicesImportPanel?.classList.toggle("hidden", !canImport);
@@ -590,6 +681,55 @@ async function loadDashboard() {
         `).join("");
     }
     await loadHolidayCalendar();
+}
+
+async function loadPayrollCatalogs() {
+    [costCentersCatalog, adjustmentTypesCatalog] = await Promise.all([
+        apiRequest("/settings/cost-centers"),
+        apiRequest("/settings/adjustment-types")
+    ]);
+    adjustmentTypesCatalog.forEach(item => { adjustmentTypeLabels[item.code] = item.name; });
+    if (adjustmentType) {
+        const selectedType = adjustmentType.value;
+        adjustmentType.innerHTML = adjustmentTypesCatalog
+            .map(item => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.name)}</option>`).join("");
+        adjustmentType.value = adjustmentTypesCatalog.some(item => item.code === selectedType)
+            ? selectedType
+            : "VACATION_BONUS";
+    }
+    document.getElementById("payroll-catalogs-panel")?.classList.toggle("hidden", currentUser?.role !== "ADMIN");
+    const costList = document.getElementById("cost-centers-list");
+    if (costList) costList.innerHTML = costCentersCatalog.length
+        ? costCentersCatalog.map(item => `<div class="catalog-list-item">
+            <span>${escapeHtml(item.name)}</span>
+            ${["DR", "SERVICES"].includes(item.code)
+                ? '<small class="muted">Base</small>'
+                : `<button class="btn danger small-btn delete-cost-center-btn" data-id="${item.id}" data-name="${escapeHtml(item.name)}">Eliminar</button>`}
+        </div>`).join("")
+        : '<div class="muted">No hay centros de costo.</div>';
+    const adjustmentList = document.getElementById("adjustment-types-list");
+    if (adjustmentList) adjustmentList.innerHTML = adjustmentTypesCatalog.length
+        ? adjustmentTypesCatalog.map(item => `<div class="catalog-list-item">
+            <span>${escapeHtml(item.name)} <small class="muted">(contabiliza ${item.worked_day_value})</small></span>
+            ${["VACATION", "VACATION_BONUS", "PRODUCTION_BONUS", "EVENT_BONUS"].includes(item.code)
+                ? '<small class="muted">Base</small>'
+                : `<div class="actions left">
+                    <button class="btn secondary small-btn edit-adjustment-type-btn" data-id="${item.id}" data-name="${escapeHtml(item.name)}" data-value="${item.worked_day_value}">Editar</button>
+                    <button class="btn danger small-btn delete-adjustment-type-btn" data-id="${item.id}" data-name="${escapeHtml(item.name)}">Eliminar</button>
+                   </div>`}
+        </div>`).join("")
+        : '<div class="muted">No hay tipos personalizados.</div>';
+    if (workerCostCenter) {
+        const selected = workerCostCenter.value;
+        workerCostCenter.innerHTML = '<option value="">Seleccione</option>' + costCentersCatalog
+            .map(item => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.name)}</option>`).join("");
+        workerCostCenter.value = selected;
+    }
+}
+
+function availableStatusOptions() {
+    const base = ["Licencia", "Vacaciones", "Libre compensatorio", "Cumpleaños", "Descanso", "Feriado", "Inasistencia", "Permiso", "Sin producción", "OK"];
+    return base;
 }
 
 operationsEditLockBtn?.addEventListener("click", async () => {
@@ -1021,6 +1161,13 @@ async function saveAdjustmentDrafts() {
 }
 
 async function exportSearchSettlement(fileFormat) {
+    if (fileFormat === "xlsx" && displayedSearchSettlements.length) {
+        const items = displayedSearchSettlements
+            .map(item => `${item.cycleId}:${item.employeeId}`)
+            .join(",");
+        await downloadApiFile(`/exports/settlements.xlsx?${new URLSearchParams({items})}`);
+        return;
+    }
     if (displayedSearchSettlements.length > 1) {
         for (const item of displayedSearchSettlements) {
             const query = new URLSearchParams({
@@ -1078,7 +1225,7 @@ async function loadWorkers() {
         <tr>
             <td>${escapeHtml(worker.employee_name)}</td>
             <td>${escapeHtml(worker.cargo || "")}</td>
-            <td>${escapeHtml(worker.cost_center === "DR" ? "D&R" : worker.cost_center === "SERVICES" ? "Servicios" : "Sin definir")}</td>
+            <td>${escapeHtml(costCenterLabel(worker.cost_center))}</td>
             <td>${escapeHtml(worker.rut || "")}</td>
             <td>${escapeHtml(worker.email || "")}</td>
             <td>${editingWorkerId === worker.id
@@ -1267,6 +1414,7 @@ function isSingleSearchSelection() {
 
 function updateSearchActionState() {
     const single = isSingleSearchSelection();
+    newLiquidationBtn?.classList.toggle("hidden", !hasPermission("payroll.edit"));
     searchEditBtn?.classList.add("hidden");
     searchAdjustmentsBtn?.classList.add("hidden");
     searchSingleActions?.classList.toggle("hidden", !(single && hasPermission("payroll.edit")));
@@ -1312,6 +1460,92 @@ function renderSearchCycleChecklist() {
         : "Seleccione uno o más ciclos";
 }
 
+function selectedNewLiquidationWorkerId() {
+    const input = newLiquidationWorkers?.querySelector('input[name="new-liquidation-worker"]:checked');
+    return input ? Number(input.value) : null;
+}
+
+function selectedNewLiquidationConceptIds() {
+    return [...selectedNewLiquidationActivityIds];
+}
+
+function renderNewLiquidationWorkers() {
+    const term = (newLiquidationWorkerSearch?.value || "").trim().toLocaleLowerCase("es");
+    const rows = newLiquidationWorkersCache.filter(worker =>
+        !term || worker.employee_name.toLocaleLowerCase("es").includes(term)
+            || (worker.rut || "").toLocaleLowerCase("es").includes(term)
+    );
+    newLiquidationWorkers.innerHTML = rows.length
+        ? rows.map(worker => `<label class="new-liquidation-option">
+            <input type="checkbox" name="new-liquidation-worker" value="${worker.id}">
+            <span>${escapeHtml(worker.employee_name)}${worker.rut ? ` · ${escapeHtml(worker.rut)}` : ""}</span>
+        </label>`).join("")
+        : '<div class="new-liquidation-muted">No hay trabajadores disponibles para este ciclo.</div>';
+}
+
+function renderNewLiquidationActivities() {
+    const normalizeSearchText = value => String(value || "")
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("es");
+    const term = normalizeSearchText(newLiquidationActivitySearch?.value).trim();
+    const rows = !term
+        ? [...newLiquidationActivitiesCache]
+        : newLiquidationActivitiesCache.filter(row =>
+            normalizeSearchText(row.concept_name).includes(term)
+            || normalizeSearchText(costCenterLabel(row.cost_center)).includes(term)
+            || normalizeSearchText(row.role_type === "DRIVER" ? "Chofer" : "Auxiliar").includes(term)
+        );
+    newLiquidationActivities.innerHTML = rows.length
+        ? rows.map(row => `<label class="new-liquidation-option">
+            <input type="checkbox" value="${row.concept_id}" ${selectedNewLiquidationActivityIds.includes(Number(row.concept_id)) ? "checked" : ""}>
+            <span>${escapeHtml(costCenterLabel(row.cost_center))} · ${row.role_type === "DRIVER" ? "Chofer" : "Auxiliar"} · ${escapeHtml(row.concept_name)}</span>
+        </label>`).join("")
+        : `<div class="new-liquidation-muted">${newLiquidationActivitiesCache.length ? "No hay actividades que coincidan con la búsqueda." : "Seleccione un trabajador para ver sus actividades disponibles."}</div>`;
+}
+
+async function loadNewLiquidationWorkers() {
+    newLiquidationWorkersCache = [];
+    newLiquidationActivitiesCache = [];
+    selectedNewLiquidationActivityIds = [];
+    renderNewLiquidationWorkers();
+    renderNewLiquidationActivities();
+    if (!newLiquidationCycle.value) return;
+    newLiquidationWorkersCache = await apiRequest(`/liquidations/new/workers?cycle_id=${encodeURIComponent(newLiquidationCycle.value)}`);
+    renderNewLiquidationWorkers();
+}
+
+async function loadNewLiquidationActivities() {
+    const employeeId = selectedNewLiquidationWorkerId();
+    newLiquidationActivitiesCache = [];
+    selectedNewLiquidationActivityIds = [];
+    renderNewLiquidationActivities();
+    if (!employeeId || !newLiquidationCycle.value) return;
+    const query = new URLSearchParams({
+        cycle_id: newLiquidationCycle.value,
+        employee_id: employeeId
+    });
+    newLiquidationActivitiesCache = await apiRequest(`/liquidations/new/activities?${query}`);
+    renderNewLiquidationActivities();
+}
+
+async function openNewLiquidationModal() {
+    if (!hasPermission("payroll.edit")) return;
+    newLiquidationCycle.innerHTML = cyclesCache.map(cycle =>
+        `<option value="${cycle.id}">${escapeHtml(cycle.cycle_name)}</option>`
+    ).join("");
+    if (selectedSearchCycleIds.length === 1) newLiquidationCycle.value = String(selectedSearchCycleIds[0]);
+    newLiquidationWorkerSearch.value = "";
+    newLiquidationActivitySearch.value = "";
+    newLiquidationModal.classList.remove("hidden");
+    await loadNewLiquidationWorkers();
+}
+
+function closeNewLiquidationModal() {
+    newLiquidationModal?.classList.add("hidden");
+    newLiquidationWorkersCache = [];
+    newLiquidationActivitiesCache = [];
+    selectedNewLiquidationActivityIds = [];
+}
+
 function filteredSearchEmployees() {
     const term = searchEmployeeSummary.value.trim().toLocaleLowerCase("es");
     return searchEmployeesCache.filter(employee => {
@@ -1336,16 +1570,11 @@ function renderSearchEmployeeChecklist(employees = filteredSearchEmployees()) {
                     ${allVisibleSelected ? "checked" : ""} />
                 <span>Todos</span>
             </label>`,
-            `<label class="checklist-item checklist-item-filter">
-                <input type="checkbox" data-employee-cost-center="DR"
-                    ${searchEmployeeCostCenterFilter === "DR" ? "checked" : ""} />
-                <span>D&amp;R</span>
-            </label>`,
-            `<label class="checklist-item checklist-item-filter">
-                <input type="checkbox" data-employee-cost-center="SERVICES"
-                    ${searchEmployeeCostCenterFilter === "SERVICES" ? "checked" : ""} />
-                <span>Servicios</span>
-            </label>`,
+            ...costCentersCatalog.map(center => `<label class="checklist-item checklist-item-filter">
+                <input type="checkbox" data-employee-cost-center="${escapeHtml(center.code)}"
+                    ${searchEmployeeCostCenterFilter === center.code ? "checked" : ""} />
+                <span>${escapeHtml(center.name)}</span>
+            </label>`),
             ...employees.map(employee => `
                 <label class="checklist-item">
                     <input
@@ -1426,6 +1655,7 @@ function settlementToSheetData(settlement, contextOverride = null) {
 }
 
 function closeSearchEditModal() {
+    exitSheetFullscreen();
     searchEditModal.classList.add("hidden");
     closeAddActivityModal();
     editModalCycleId = null;
@@ -1650,16 +1880,7 @@ function renderSpreadsheetMarkup(sheetData, allowEdit = false) {
         : !d[2]
             ? `missing-status-${cellType}`
             : "";
-    const statusOptions = [
-        "Licencia",
-        "Vacaciones",
-        "Libre compensatorio",
-        "Descanso",
-        "Feriado",
-        "Inasistencia",
-        "Sin producción",
-        "OK"
-    ];
+    const statusOptions = availableStatusOptions();
     const statusCells = statusRow
         ? sheetData.dates.map((d, cIndex) => {
             const value = statusRow.values ? statusRow.values[cIndex] ?? "" : "";
@@ -1732,16 +1953,7 @@ function renderSpreadsheetMarkup(sheetData, allowEdit = false) {
             const holidayTitle = d[4] && d[5]?.length ? ` title="${escapeHtml(d[5].join(", "))}"` : "";
             const blue = row.status || row.totalRow || row.summary ? "blue" : "";
             if (row.status && allowEdit) {
-                const statusOptions = [
-                    "Licencia",
-                    "Vacaciones",
-                    "Libre compensatorio",
-                    "Descanso",
-                    "Feriado",
-                    "Inasistencia",
-                    "Sin producción",
-                    "OK"
-                ];
+                const statusOptions = availableStatusOptions();
                 const currentStatus = String(val || "");
                 html += `<td class="status-head ${holidayClass}"${holidayTitle}>
                     <select class="status-input" data-row="${rIndex}" data-col="${cIndex}">
@@ -2296,8 +2508,11 @@ searchAdjustmentsBtn?.addEventListener("click", () => {
 
 searchSingleEditBtn?.addEventListener("click", async () => {
     if (!hasPermission("payroll.edit") || !isSingleSearchSelection()) return;
+    const continueFullscreen = Boolean(document.querySelector(".sheet-fullscreen"));
+    exitSheetFullscreen();
     try {
         await openSearchEditModal(selectedSearchCycleIds[0], selectedSearchEmployeeIds[0]);
+        if (continueFullscreen) enterSheetFullscreen(document.getElementById("search-edit-sheet-panel"));
     } catch (error) {
         alert(error.message);
     }
@@ -2305,12 +2520,18 @@ searchSingleEditBtn?.addEventListener("click", async () => {
 
 searchSingleAdjustmentsBtn?.addEventListener("click", () => {
     if (!hasPermission("payroll.edit") || !isSingleSearchSelection()) return;
+    exitSheetFullscreen();
     openAdjustmentsModal();
 });
 
 searchEditModalCancelBtn?.addEventListener("click", closeSearchEditModal);
 addActivityBtn?.addEventListener("click", () => {
     openAddActivityModal().catch(error => alert(error.message));
+});
+
+document.getElementById("fullscreen-context-edit-btn")?.addEventListener("click", () => {
+    exitSheetFullscreen();
+    editBtn?.click();
 });
 addActivityCancelBtn?.addEventListener("click", closeAddActivityModal);
 addActivityContext?.addEventListener("change", () => {
@@ -2394,8 +2615,11 @@ searchEditModalSaveBtn?.addEventListener("click", async () => {
 spreadsheetSearch.addEventListener("click", async event => {
     const editButton = event.target.closest(".stack-edit-btn");
     if (editButton && hasPermission("payroll.edit")) {
+        const continueFullscreen = Boolean(document.querySelector(".sheet-fullscreen"));
+        exitSheetFullscreen();
         try {
             await openSearchEditModal(editButton.dataset.cycleId, editButton.dataset.employeeId);
+            if (continueFullscreen) enterSheetFullscreen(document.getElementById("search-edit-sheet-panel"));
         } catch (error) {
             alert(error.message);
         }
@@ -2825,6 +3049,78 @@ searchEmployeeSummary.addEventListener("click", event => {
     positionSearchDropdown(searchEmployee, searchEmployeeSummary);
 });
 
+newLiquidationBtn?.addEventListener("click", () => {
+    openNewLiquidationModal().catch(error => alert(error.message));
+});
+newLiquidationCancelBtn?.addEventListener("click", closeNewLiquidationModal);
+newLiquidationCycle?.addEventListener("change", () => {
+    loadNewLiquidationWorkers().catch(error => alert(error.message));
+});
+newLiquidationWorkerSearch?.addEventListener("input", renderNewLiquidationWorkers);
+newLiquidationActivitySearch?.addEventListener("input", () => {
+    renderNewLiquidationActivities();
+    newLiquidationActivities.scrollTop = 0;
+});
+newLiquidationActivitySearch?.addEventListener("search", () => {
+    renderNewLiquidationActivities();
+    newLiquidationActivities.scrollTop = 0;
+});
+newLiquidationWorkers?.addEventListener("change", event => {
+    const selected = event.target.matches('input[name="new-liquidation-worker"]') && event.target.checked
+        ? event.target
+        : null;
+    newLiquidationWorkers.querySelectorAll('input[name="new-liquidation-worker"]').forEach(input => {
+        if (input !== selected) input.checked = false;
+    });
+    loadNewLiquidationActivities().catch(error => alert(error.message));
+});
+newLiquidationActivities?.addEventListener("change", event => {
+    if (!event.target.matches('input[type="checkbox"]')) return;
+    const conceptId = Number(event.target.value);
+    if (event.target.checked) {
+        if (!selectedNewLiquidationActivityIds.includes(conceptId)) selectedNewLiquidationActivityIds.push(conceptId);
+    } else {
+        selectedNewLiquidationActivityIds = selectedNewLiquidationActivityIds.filter(id => id !== conceptId);
+    }
+});
+newLiquidationCreateBtn?.addEventListener("click", async () => {
+    const cycleId = Number(newLiquidationCycle.value);
+    const employeeId = selectedNewLiquidationWorkerId();
+    const conceptIds = selectedNewLiquidationConceptIds();
+    if (!cycleId || !employeeId) {
+        alert("Seleccione un ciclo y un trabajador.");
+        return;
+    }
+    if (!conceptIds.length) {
+        alert("Seleccione al menos una actividad.");
+        return;
+    }
+    newLiquidationCreateBtn.disabled = true;
+    try {
+        await apiRequest("/liquidations/new", {
+            method: "POST",
+            body: JSON.stringify({
+                cycle_id: cycleId,
+                employee_id: employeeId,
+                concept_ids: conceptIds
+            })
+        });
+        closeNewLiquidationModal();
+        selectedSearchCycleIds = [cycleId];
+        renderSearchCycleChecklist();
+        await loadSearchEmployees();
+        selectedSearchEmployeeIds = [employeeId];
+        renderSearchEmployeeChecklist();
+        updateSearchActionState();
+        await loadSearchSettlement();
+        alert("La nueva liquidación fue creada correctamente.");
+    } catch (error) {
+        alert(error.message);
+    } finally {
+        newLiquidationCreateBtn.disabled = false;
+    }
+});
+
 searchEmployeeSummary.addEventListener("focus", event => {
     event.stopPropagation();
     searchEmployee.classList.remove("hidden");
@@ -3195,8 +3491,82 @@ saveWorkerBtn?.addEventListener("click", async () => {
 });
 
 searchExportExcelBtn?.addEventListener("click", () => {
-    if (!confirm("¿Exportar la planilla seleccionada en formato Excel?")) return;
+    if (!confirm("¿Exportar todas las planillas visibles en una sola hoja Excel?")) return;
     exportSearchSettlement("xlsx").catch(error => alert(error.message));
+});
+
+document.getElementById("create-cost-center-btn")?.addEventListener("click", async () => {
+    const input = document.getElementById("new-cost-center-name");
+    const name = input.value.trim();
+    if (!name) return alert("Ingrese el nombre del centro de costo.");
+    try {
+        await apiRequest("/settings/cost-centers", {
+            method: "POST",
+            body: JSON.stringify({name})
+        });
+        input.value = "";
+        await loadPayrollCatalogs();
+        await loadWorkers();
+    } catch (error) {
+        alert(error.message);
+    }
+});
+
+document.getElementById("create-adjustment-type-btn")?.addEventListener("click", async () => {
+    const input = document.getElementById("new-adjustment-type-name");
+    const name = input.value.trim();
+    if (!name) return alert("Ingrese el nombre del tipo de ajuste.");
+    try {
+        await apiRequest("/settings/adjustment-types", {
+            method: "POST",
+            body: JSON.stringify({
+                name,
+                worked_day_value: Number(document.getElementById("new-adjustment-type-value").value)
+            })
+        });
+        input.value = "";
+        await loadPayrollCatalogs();
+    } catch (error) {
+        alert(error.message);
+    }
+});
+
+document.getElementById("cost-centers-list")?.addEventListener("click", async event => {
+    const button = event.target.closest(".delete-cost-center-btn");
+    if (!button || !confirm(`¿Eliminar el centro de costo ${button.dataset.name}?`)) return;
+    try {
+        await apiRequest(`/settings/cost-centers/${button.dataset.id}`, {method: "DELETE"});
+        await loadPayrollCatalogs();
+    } catch (error) {
+        alert(error.message);
+    }
+});
+
+document.getElementById("adjustment-types-list")?.addEventListener("click", async event => {
+    const editButton = event.target.closest(".edit-adjustment-type-btn");
+    if (editButton) {
+        const entered = prompt(`Contabilización de ${editButton.dataset.name}: ingrese 1 o 0`, editButton.dataset.value);
+        if (entered === null) return;
+        if (!["0", "1"].includes(entered.trim())) return alert("La contabilización debe ser 1 o 0.");
+        try {
+            await apiRequest(`/settings/adjustment-types/${editButton.dataset.id}`, {
+                method: "PUT",
+                body: JSON.stringify({worked_day_value: Number(entered)})
+            });
+            await loadPayrollCatalogs();
+        } catch (error) {
+            alert(error.message);
+        }
+        return;
+    }
+    const button = event.target.closest(".delete-adjustment-type-btn");
+    if (!button || !confirm(`¿Eliminar el tipo de ajuste ${button.dataset.name}?`)) return;
+    try {
+        await apiRequest(`/settings/adjustment-types/${button.dataset.id}`, {method: "DELETE"});
+        await loadPayrollCatalogs();
+    } catch (error) {
+        alert(error.message);
+    }
 });
 
 searchExportPdfBtn?.addEventListener("click", () => {

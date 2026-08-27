@@ -352,3 +352,40 @@ class PayrollSetting(Base):
     setting_value: Mapped[str] = mapped_column(String(255))
     updated_by: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PayrollCostCenter(Base):
+    __tablename__ = "payroll_cost_centers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("payroll_users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PayrollAdjustmentType(Base):
+    __tablename__ = "payroll_adjustment_types"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True)
+    worked_day_value: Mapped[int] = mapped_column(Integer)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("payroll_users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PayrollLiquidationActivity(Base):
+    __tablename__ = "payroll_liquidation_activities"
+    __table_args__ = (
+        UniqueConstraint("cycle_id", "employee_id", "concept_id", name="uq_payroll_liquidation_activity"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    cycle_id: Mapped[int] = mapped_column(ForeignKey("payroll_cycles.id"), index=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("payroll_employees.id"), index=True)
+    concept_id: Mapped[int] = mapped_column(ForeignKey("payroll_concepts.id"), index=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("payroll_users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

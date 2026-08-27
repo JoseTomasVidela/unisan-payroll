@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import smtplib
+import unicodedata
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal, ROUND_HALF_UP
@@ -42,6 +44,7 @@ from .exporter import (
     export_sheet_pdf_bytes,
     export_softland_xlsx_bytes,
     export_xlsx_bytes,
+    export_multiple_xlsx_bytes,
 )
 from .holidays import ALLOWED_HOLIDAY_SCOPES, HolidayService
 from .importer import ensure_workbook_cycles, find_possible_reimports, parse_workbook, persist_import
@@ -58,6 +61,10 @@ from .models import (
     PayrollRecord,
     PayrollSetting,
     PayrollCellOverride,
+    PayrollCostCenter,
+    PayrollAdjustmentType,
+    PayrollConcept,
+    PayrollLiquidationActivity,
     Permission,
     Role,
     User,
@@ -65,6 +72,11 @@ from .models import (
 from .rates import ConceptRateService
 from .schemas import (
     CycleResponse,
+    CostCenterCreateRequest,
+    CostCenterResponse,
+    AdjustmentTypeCreateRequest,
+    AdjustmentTypeUpdateRequest,
+    AdjustmentTypeResponse,
     AuditEntryResponse,
     EmployeeOptionResponse,
     HolidayCreateRequest,
@@ -98,6 +110,7 @@ from .schemas import (
     WorkerCreateRequest,
     WorkerListItemResponse,
     WorkerUpdateRequest,
+    EmptyLiquidationCreateRequest,
     UserActiveUpdate,
     UserCreate,
     UserPasswordReset,
@@ -312,11 +325,26 @@ def normalize_cargo(cargo: str | None) -> str | None:
     return normalized or None
 
 
-def normalize_worker_cost_center(cost_center: str | None) -> str | None:
+def normalize_catalog_code(value: str, max_length: int = 32) -> str:
+    normalized = unicodedata.normalize("NFKD", value.strip())
+    ascii_value = "".join(char for char in normalized if not unicodedata.combining(char))
+    code = "_".join("".join(char if char.isalnum() else " " for char in ascii_value).upper().split())
+    if not code or len(code) > max_length:
+        raise HTTPException(status_code=400, detail="Nombre inválido o demasiado largo.")
+    return code
+
+
+def normalize_worker_cost_center(cost_center: str | None, db: Session | None = None) -> str | None:
     if cost_center is None:
         return None
     normalized = cost_center.strip().upper()
-    if normalized not in {"DR", "SERVICES"}:
+    is_registered = db is not None and db.scalar(
+        select(func.count()).select_from(PayrollCostCenter).where(
+            PayrollCostCenter.code == normalized,
+            PayrollCostCenter.active.is_(True),
+        )
+    )
+    if normalized not in {"DR", "SERVICES"} and not is_registered:
         raise HTTPException(status_code=400, detail="Centro de costo inválido.")
     return normalized
 
@@ -368,7 +396,7 @@ def normalize_holiday_scope(holiday_scope: str) -> str:
     return normalized
 
 
-def normalize_adjustment_type(adjustment_type: str) -> str:
+def normalize_adjustment_type(adjustment_type: str, db: Session | None = None) -> str:
     normalized = adjustment_type.strip().upper()
     allowed = {
         "VACATION",
@@ -376,7 +404,13 @@ def normalize_adjustment_type(adjustment_type: str) -> str:
         "PRODUCTION_BONUS",
         "EVENT_BONUS",
     }
-    if normalized not in allowed:
+    is_custom = db is not None and db.scalar(
+        select(func.count()).select_from(PayrollAdjustmentType).where(
+            PayrollAdjustmentType.code == normalized,
+            PayrollAdjustmentType.active.is_(True),
+        )
+    )
+    if normalized not in allowed and not is_custom:
         raise HTTPException(status_code=400, detail="Tipo de ajuste invalido.")
     return normalized
 
@@ -388,7 +422,7 @@ def normalize_adjustment_description(description: str | None) -> str | None:
     return normalized or None
 
 
-def effective_adjustment_name(adjustment_type: str, description: str | None) -> str:
+def effective_adjustment_name(adjustment_type: str, description: str | None, db: Session | None = None) -> str:
     normalized = normalize_adjustment_description(description)
     if normalized:
         return normalized
@@ -398,7 +432,11 @@ def effective_adjustment_name(adjustment_type: str, description: str | None) -> 
         "PRODUCTION_BONUS": "Bono Producción",
         "EVENT_BONUS": "Bono Evento",
     }
-    return defaults[normalize_adjustment_type(adjustment_type)]
+    normalized_type = normalize_adjustment_type(adjustment_type, db)
+    if normalized_type in defaults:
+        return defaults[normalized_type]
+    item = db.scalar(select(PayrollAdjustmentType).where(PayrollAdjustmentType.code == normalized_type)) if db else None
+    return item.name if item else normalized_type
 
 
 def _serialize_adjustment(adjustment: PayrollManualAdjustment, history_rows) -> ManualAdjustmentResponse:
@@ -679,6 +717,193 @@ def update_operations_edit_lock(
         can_control=True,
         updated_by=current_user.full_name,
         updated_at=setting.updated_at,
+    )
+
+
+@app.get("/api/settings/cost-centers", response_model=list[CostCenterResponse])
+def list_cost_centers(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("payroll.read")),
+) -> list[CostCenterResponse]:
+    rows = list(db.scalars(
+        select(PayrollCostCenter)
+        .where(PayrollCostCenter.active.is_(True))
+        .order_by(PayrollCostCenter.name)
+    ).all())
+    by_code = {row.code: CostCenterResponse(id=row.id, code=row.code, name=row.name, active=row.active) for row in rows}
+    by_code.setdefault("DR", CostCenterResponse(id=0, code="DR", name="D&R", active=True))
+    by_code.setdefault("SERVICES", CostCenterResponse(id=-1, code="SERVICES", name="Servicios", active=True))
+    return sorted(by_code.values(), key=lambda row: row.name.casefold())
+
+
+@app.post("/api/settings/cost-centers", response_model=CostCenterResponse, status_code=201)
+def create_cost_center(
+    payload: CostCenterCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("users.manage")),
+) -> CostCenterResponse:
+    if current_user.role.role_name != "ADMIN":
+        raise HTTPException(status_code=403, detail="Solo ADMIN puede crear centros de costo.")
+    name = " ".join(payload.name.strip().split())
+    code = normalize_catalog_code(name)
+    item = PayrollCostCenter(code=code, name=name, created_by=current_user.id)
+    db.add(item)
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="El centro de costo ya existe.") from exc
+    db.add(PayrollAuditLog(
+        user_id=current_user.id, action_type="CREATE_COST_CENTER",
+        table_name="payroll_cost_centers", record_id=item.id, new_value=name,
+    ))
+    db.commit()
+    db.refresh(item)
+    return CostCenterResponse(id=item.id, code=item.code, name=item.name, active=item.active)
+
+
+@app.delete("/api/settings/cost-centers/{cost_center_id}", status_code=204)
+def delete_cost_center(
+    cost_center_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("users.manage")),
+) -> Response:
+    if current_user.role.role_name != "ADMIN":
+        raise HTTPException(status_code=403, detail="Solo ADMIN puede eliminar centros de costo.")
+    item = db.get(PayrollCostCenter, cost_center_id)
+    if item is None or not item.active:
+        raise HTTPException(status_code=404, detail="Centro de costo no encontrado.")
+    if item.code in {"DR", "SERVICES"}:
+        raise HTTPException(status_code=409, detail="D&R y Servicios no pueden eliminarse.")
+    references = sum(int(db.scalar(query) or 0) for query in (
+        select(func.count()).select_from(Employee).where(Employee.cost_center == item.code),
+        select(func.count()).select_from(PayrollRecord).where(PayrollRecord.cost_center == item.code),
+        select(func.count()).select_from(PayrollManualAdjustment).where(PayrollManualAdjustment.cost_center == item.code),
+    ))
+    if references:
+        raise HTTPException(status_code=409, detail="No se puede eliminar: el centro de costo está en uso.")
+    item.active = False
+    db.add(PayrollAuditLog(
+        user_id=current_user.id, action_type="DELETE_COST_CENTER",
+        table_name="payroll_cost_centers", record_id=item.id, old_value=item.name,
+    ))
+    db.commit()
+    return Response(status_code=204)
+
+
+@app.get("/api/settings/adjustment-types", response_model=list[AdjustmentTypeResponse])
+def list_adjustment_types(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("payroll.read")),
+) -> list[AdjustmentTypeResponse]:
+    rows = list(db.scalars(
+        select(PayrollAdjustmentType)
+        .where(PayrollAdjustmentType.active.is_(True))
+        .order_by(PayrollAdjustmentType.name)
+    ).all())
+    by_code = {row.code: AdjustmentTypeResponse(
+        id=row.id, code=row.code, name=row.name,
+        worked_day_value=row.worked_day_value, active=row.active,
+    ) for row in rows}
+    base_types = (
+        ("VACATION", "Vacaciones"),
+        ("VACATION_BONUS", "Bono Vacaciones"),
+        ("PRODUCTION_BONUS", "Bono Producción"),
+        ("EVENT_BONUS", "Bono Evento"),
+    )
+    for offset, (code, name) in enumerate(base_types, start=1):
+        by_code.setdefault(code, AdjustmentTypeResponse(
+            id=-offset, code=code, name=name, worked_day_value=1, active=True,
+        ))
+    return sorted(by_code.values(), key=lambda row: row.name.casefold())
+
+
+@app.post("/api/settings/adjustment-types", response_model=AdjustmentTypeResponse, status_code=201)
+def create_adjustment_type(
+    payload: AdjustmentTypeCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("users.manage")),
+) -> AdjustmentTypeResponse:
+    if current_user.role.role_name != "ADMIN":
+        raise HTTPException(status_code=403, detail="Solo ADMIN puede crear tipos de ajuste.")
+    name = " ".join(payload.name.strip().split())
+    code = normalize_catalog_code(name, 64)
+    item = PayrollAdjustmentType(
+        code=code, name=name, worked_day_value=payload.worked_day_value,
+        created_by=current_user.id,
+    )
+    db.add(item)
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="El tipo de ajuste ya existe.") from exc
+    db.add(PayrollAuditLog(
+        user_id=current_user.id, action_type="CREATE_ADJUSTMENT_TYPE",
+        table_name="payroll_adjustment_types", record_id=item.id,
+        new_value=json.dumps({"name": name, "worked_day_value": payload.worked_day_value}, ensure_ascii=False),
+    ))
+    db.commit()
+    db.refresh(item)
+    return AdjustmentTypeResponse(
+        id=item.id, code=item.code, name=item.name,
+        worked_day_value=item.worked_day_value, active=item.active,
+    )
+
+
+@app.delete("/api/settings/adjustment-types/{adjustment_type_id}", status_code=204)
+def delete_adjustment_type(
+    adjustment_type_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("users.manage")),
+) -> Response:
+    if current_user.role.role_name != "ADMIN":
+        raise HTTPException(status_code=403, detail="Solo ADMIN puede eliminar tipos de ajuste.")
+    item = db.get(PayrollAdjustmentType, adjustment_type_id)
+    if item is None or not item.active:
+        raise HTTPException(status_code=404, detail="Tipo de ajuste no encontrado.")
+    references = int(db.scalar(
+        select(func.count()).select_from(PayrollManualAdjustment).where(
+            PayrollManualAdjustment.adjustment_type == item.code,
+            PayrollManualAdjustment.active.is_(True),
+        )
+    ) or 0)
+    if references:
+        raise HTTPException(status_code=409, detail="No se puede eliminar: el tipo de ajuste está en uso.")
+    item.active = False
+    db.add(PayrollAuditLog(
+        user_id=current_user.id, action_type="DELETE_ADJUSTMENT_TYPE",
+        table_name="payroll_adjustment_types", record_id=item.id, old_value=item.name,
+    ))
+    db.commit()
+    return Response(status_code=204)
+
+
+@app.put("/api/settings/adjustment-types/{adjustment_type_id}", response_model=AdjustmentTypeResponse)
+def update_adjustment_type(
+    adjustment_type_id: int,
+    payload: AdjustmentTypeUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("users.manage")),
+) -> AdjustmentTypeResponse:
+    if current_user.role.role_name != "ADMIN":
+        raise HTTPException(status_code=403, detail="Solo ADMIN puede editar tipos de ajuste.")
+    item = db.get(PayrollAdjustmentType, adjustment_type_id)
+    if item is None or not item.active:
+        raise HTTPException(status_code=404, detail="Tipo de ajuste no encontrado.")
+    old_value = str(item.worked_day_value)
+    item.worked_day_value = payload.worked_day_value
+    db.add(PayrollAuditLog(
+        user_id=current_user.id, action_type="UPDATE_ADJUSTMENT_TYPE",
+        table_name="payroll_adjustment_types", record_id=item.id,
+        field_name="worked_day_value", old_value=old_value,
+        new_value=str(payload.worked_day_value),
+    ))
+    db.commit()
+    db.refresh(item)
+    return AdjustmentTypeResponse(
+        id=item.id, code=item.code, name=item.name,
+        worked_day_value=item.worked_day_value, active=item.active,
     )
 
 
@@ -1332,6 +1557,150 @@ def list_workers(
     return sorted(rows, key=lambda item: item.employee_name)
 
 
+@app.get("/api/liquidations/new/workers", response_model=list[WorkerListItemResponse])
+def list_workers_available_for_liquidation(
+    cycle_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("payroll.edit")),
+) -> list[WorkerListItemResponse]:
+    if db.get(PayrollCycle, cycle_id) is None:
+        raise HTTPException(status_code=404, detail="Ciclo no encontrado.")
+    workers = list_workers(db=db, _=_)
+    employees = list(db.scalars(select(Employee).order_by(Employee.id)).all())
+    available: list[WorkerListItemResponse] = []
+    for worker in workers:
+        related_ids = [
+            item.id for item in employees
+            if names_refer_to_same_person(item.employee_name, worker.employee_name)
+        ]
+        exists = db.scalar(
+            select(func.count()).select_from(PayrollRecord).where(
+                PayrollRecord.cycle_id == cycle_id,
+                PayrollRecord.employee_id.in_(related_ids),
+            )
+        )
+        if not exists:
+            available.append(worker)
+    return available
+
+
+@app.get("/api/liquidations/new/activities", response_model=list[RateListItemResponse])
+def list_activities_for_empty_liquidation(
+    cycle_id: int,
+    employee_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("payroll.edit")),
+) -> list[RateListItemResponse]:
+    employee = db.get(Employee, employee_id)
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Trabajador no encontrado.")
+    rows: list[RateListItemResponse] = []
+    contexts = list(db.execute(
+        select(PayrollConcept.cost_center, PayrollConcept.role_type)
+        .where(PayrollConcept.active.is_(True))
+        .distinct()
+    ).all())
+    for center, role_type in contexts:
+        rate_rows = concept_rate_service.list_rates(
+            db,
+            cost_center=center,
+            role_type=role_type,
+            cycle_id=cycle_id,
+            contract_type=employee.contract_type,
+        )
+        rows.extend(
+            RateListItemResponse.model_validate(row.__dict__)
+            for row in rate_rows
+            if row.active and row.amount is not None
+        )
+    return rows
+
+
+@app.post("/api/liquidations/new", response_model=SettlementResponse, status_code=201)
+def create_empty_liquidation(
+    payload: EmptyLiquidationCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("payroll.edit")),
+) -> SettlementResponse:
+    cycle = db.get(PayrollCycle, payload.cycle_id)
+    employee = db.get(Employee, payload.employee_id)
+    if cycle is None:
+        raise HTTPException(status_code=404, detail="Ciclo no encontrado.")
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Trabajador no encontrado.")
+    related_ids = [
+        item.id for item in db.scalars(select(Employee).order_by(Employee.id)).all()
+        if names_refer_to_same_person(item.employee_name, employee.employee_name)
+    ]
+    existing = db.scalar(select(func.count()).select_from(PayrollRecord).where(
+        PayrollRecord.cycle_id == payload.cycle_id,
+        PayrollRecord.employee_id.in_(related_ids),
+    ))
+    if existing:
+        raise HTTPException(status_code=409, detail="El trabajador ya tiene una liquidación en este ciclo.")
+    concept_ids = list(dict.fromkeys(payload.concept_ids))
+    concepts = list(db.scalars(select(PayrollConcept).where(
+        PayrollConcept.id.in_(concept_ids),
+        PayrollConcept.active.is_(True),
+    )).all())
+    if len(concepts) != len(concept_ids):
+        raise HTTPException(status_code=400, detail="La selección de actividades no es válida.")
+    centers = sorted({item.cost_center for item in concepts})
+    available_concept_ids: set[int] = set()
+    for center, role_type in {(item.cost_center, item.role_type) for item in concepts}:
+        available_concept_ids.update(
+            row.concept_id for row in concept_rate_service.list_rates(
+                db, cost_center=center, role_type=role_type, cycle_id=cycle.id,
+                contract_type=employee.contract_type,
+            ) if row.active and row.amount is not None
+        )
+    if set(concept_ids) - available_concept_ids:
+        raise HTTPException(status_code=400, detail="Hay actividades que no corresponden al contrato del trabajador.")
+
+    imports: dict[str, PayrollImport] = {}
+    for center in centers:
+        item = PayrollImport(
+            cycle_id=cycle.id, source_type="MANUAL", cost_center=center,
+            file_name=f"Liquidación manual - {employee.employee_name}",
+            imported_by=current_user.id, rows_imported=1,
+        )
+        db.add(item)
+        db.flush()
+        imports[center] = item
+    for row_number, (center, role_type) in enumerate(
+        sorted({(item.cost_center, item.role_type) for item in concepts}), start=1
+    ):
+        source_hash = hashlib.sha256(
+            f"MANUAL:{cycle.id}:{employee.id}:{center}:{role_type}".encode("utf-8")
+        ).hexdigest()
+        source_type = next(item.source_type for item in concepts if item.cost_center == center and item.role_type == role_type)
+        db.add(PayrollRecord(
+            cycle_id=cycle.id, import_id=imports[center].id, employee_id=employee.id,
+            source_type=source_type, cost_center=center, role_type=role_type,
+            source_employee_name=employee.employee_name, source_employee_code=None,
+            source_row_number=row_number, source_row_hash=source_hash,
+            source_person_slot="MANUAL", work_date=cycle.start_date,
+            duration_minutes=None, status=None,
+        ))
+    db.add_all([
+        PayrollLiquidationActivity(
+            cycle_id=cycle.id, employee_id=employee.id, concept_id=concept.id,
+            created_by=current_user.id,
+        )
+        for concept in concepts
+    ])
+    db.add(PayrollAuditLog(
+        user_id=current_user.id, action_type="CREATE_EMPTY_LIQUIDATION",
+        table_name="payroll_records", record_id=employee.id,
+        new_value=json.dumps({"cycle_id": cycle.id, "concept_ids": concept_ids}),
+    ))
+    db.commit()
+    return SettlementResponse.model_validate(build_settlement_payload(
+        db, cycle_id=cycle.id, employee_id=employee.id,
+        cost_center=None, role_type=None,
+    ))
+
+
 @app.post("/api/workers", response_model=WorkerListItemResponse, status_code=201)
 def create_worker(
     payload: WorkerCreateRequest,
@@ -1345,7 +1714,7 @@ def create_worker(
     rut = normalize_rut(payload.rut)
     email = normalize_email(payload.email)
     cargo = normalize_cargo(payload.cargo)
-    cost_center = normalize_worker_cost_center(payload.cost_center)
+    cost_center = normalize_worker_cost_center(payload.cost_center, db)
     matches = find_related_employees_by_name(db, employee_name)
     if matches:
         for employee in matches:
@@ -1420,7 +1789,7 @@ def update_worker(
     rut = normalize_rut(payload.rut)
     email = normalize_email(payload.email)
     cargo = normalize_cargo(payload.cargo)
-    cost_center = normalize_worker_cost_center(payload.cost_center)
+    cost_center = normalize_worker_cost_center(payload.cost_center, db)
     matches = find_related_employees_by_name(db, worker.employee_name)
     for employee in matches:
         employee.contract_type = contract_type
@@ -1539,10 +1908,11 @@ def create_manual_adjustment(
         employee_id=payload.employee_id,
         cost_center="ALL",
         role_type="ALL",
-        adjustment_type=normalize_adjustment_type(payload.adjustment_type),
+        adjustment_type=normalize_adjustment_type(payload.adjustment_type, db),
         adjustment_name=effective_adjustment_name(
             payload.adjustment_type,
             payload.description,
+            db,
         ),
         units=payload.units,
         amount=payload.amount,
@@ -1598,10 +1968,11 @@ def update_manual_adjustment(
         "observations": adjustment.notes,
         "active": adjustment.active,
     }
-    adjustment.adjustment_type = normalize_adjustment_type(payload.adjustment_type)
+    adjustment.adjustment_type = normalize_adjustment_type(payload.adjustment_type, db)
     adjustment.adjustment_name = effective_adjustment_name(
         payload.adjustment_type,
         payload.description,
+        db,
     )
     adjustment.units = payload.units
     adjustment.amount = payload.amount
@@ -1988,6 +2359,56 @@ def serialize_ipc_adjustment(item: PayrollIpcAdjustment, db: Session) -> IpcAdju
         created_at=item.created_at,
         updated_at=item.updated_at,
         applied_at=item.applied_at,
+    )
+
+
+@app.get("/api/exports/settlements.xlsx")
+def export_visible_settlements_xlsx(
+    items: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission("payroll.export")),
+) -> Response:
+    pairs: list[tuple[int, int]] = []
+    try:
+        for raw_item in items.split(","):
+            cycle_value, employee_value = raw_item.split(":", maxsplit=1)
+            pair = (int(cycle_value), int(employee_value))
+            if pair[0] <= 0 or pair[1] <= 0:
+                raise ValueError
+            pairs.append(pair)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="Selección de planillas inválida.") from exc
+    if not pairs:
+        raise HTTPException(status_code=400, detail="No hay planillas para exportar.")
+    if len(pairs) > 200:
+        raise HTTPException(status_code=400, detail="No se pueden exportar más de 200 planillas a la vez.")
+
+    settlements = [
+        build_settlement_payload(
+            db,
+            cycle_id=cycle_id,
+            employee_id=employee_id,
+            cost_center=None,
+            role_type=None,
+        )
+        for cycle_id, employee_id in pairs
+    ]
+    file_name = "Liquidaciones seleccionadas.xlsx"
+    for cycle_id, employee_id in pairs:
+        log_export(
+            db,
+            current_user=current_user,
+            cycle_id=cycle_id,
+            employee_id=employee_id,
+            cost_center=None,
+            role_type=None,
+            file_format="xlsx",
+            file_name=file_name,
+        )
+    return Response(
+        content=export_multiple_xlsx_bytes(settlements),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{file_name}"'},
     )
 
 

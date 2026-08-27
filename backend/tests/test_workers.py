@@ -109,7 +109,61 @@ def test_create_worker_requires_valid_cost_center(client):
         json={"employee_name": "Centro Invalido", "cost_center": "OTRO"},
     )
     assert missing.status_code == 422
-    assert invalid.status_code == 422
+    assert invalid.status_code == 400
+
+
+def test_admin_can_create_cost_center_and_assign_it_to_worker(client):
+    headers = admin_headers(client)
+    created_center = client.post(
+        "/api/settings/cost-centers",
+        headers=headers,
+        json={"name": "Operaciones Norte"},
+    )
+    assert created_center.status_code == 201
+    assert created_center.json()["code"] == "OPERACIONES_NORTE"
+
+    created_worker = client.post(
+        "/api/workers",
+        headers=headers,
+        json={
+            "employee_name": "Trabajador Norte",
+            "cost_center": "OPERACIONES_NORTE",
+        },
+    )
+    assert created_worker.status_code == 201
+    assert created_worker.json()["cost_center"] == "OPERACIONES_NORTE"
+    in_use_delete = client.delete(
+        f"/api/settings/cost-centers/{created_center.json()['id']}",
+        headers=headers,
+    )
+    assert in_use_delete.status_code == 409
+
+
+def test_admin_can_create_adjustment_type_with_worked_day_value(client):
+    response = client.post(
+        "/api/settings/adjustment-types",
+        headers=admin_headers(client),
+        json={"name": "Capacitación", "worked_day_value": 1},
+    )
+    assert response.status_code == 201
+    assert response.json()["code"] == "CAPACITACION"
+    assert response.json()["worked_day_value"] == 1
+
+    listed = client.get("/api/settings/adjustment-types", headers=admin_headers(client))
+    assert listed.status_code == 200
+    assert any(item["name"] == "Capacitación" for item in listed.json())
+    updated = client.put(
+        f"/api/settings/adjustment-types/{response.json()['id']}",
+        headers=admin_headers(client),
+        json={"worked_day_value": 0},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["worked_day_value"] == 0
+    deleted = client.delete(
+        f"/api/settings/adjustment-types/{response.json()['id']}",
+        headers=admin_headers(client),
+    )
+    assert deleted.status_code == 204
 
 
 def test_workers_list_prefers_full_name_when_available(client, db_factory):

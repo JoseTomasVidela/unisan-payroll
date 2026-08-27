@@ -101,6 +101,34 @@ class CycleResponse(BaseModel):
     end_date: date
 
 
+class CostCenterResponse(BaseModel):
+    id: int
+    code: str
+    name: str
+    active: bool
+
+
+class CostCenterCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+
+class AdjustmentTypeResponse(BaseModel):
+    id: int
+    code: str
+    name: str
+    worked_day_value: int
+    active: bool
+
+
+class AdjustmentTypeCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    worked_day_value: int = Field(ge=0, le=1)
+
+
+class AdjustmentTypeUpdateRequest(BaseModel):
+    worked_day_value: int = Field(ge=0, le=1)
+
+
 class ImportHistoryResponse(BaseModel):
     id: int
     cycle_id: int
@@ -176,7 +204,7 @@ class WorkerListItemResponse(BaseModel):
 
 class WorkerCreateRequest(BaseModel):
     employee_name: str = Field(min_length=1, max_length=180)
-    cost_center: str = Field(pattern="^(DR|SERVICES)$")
+    cost_center: str = Field(min_length=1, max_length=32, pattern="^[A-Za-z0-9_]+$")
     contract_type: str | None = Field(default=None, pattern="^(NEW|OLD)?$")
     rut: str | None = Field(default=None, max_length=32)
     email: str | None = Field(default=None, max_length=255)
@@ -184,11 +212,17 @@ class WorkerCreateRequest(BaseModel):
 
 
 class WorkerUpdateRequest(BaseModel):
-    cost_center: str | None = Field(default=None, pattern="^(DR|SERVICES)?$")
+    cost_center: str | None = Field(default=None, max_length=32, pattern="^[A-Za-z0-9_]+$")
     contract_type: str | None = Field(default=None, pattern="^(NEW|OLD)?$")
     rut: str | None = Field(default=None, max_length=32)
     email: str | None = Field(default=None, max_length=255)
     cargo: str | None = Field(default=None, max_length=180)
+
+
+class EmptyLiquidationCreateRequest(BaseModel):
+    cycle_id: int
+    employee_id: int
+    concept_ids: list[int] = Field(min_length=1)
 
 
 class SettlementDateResponse(BaseModel):
@@ -317,9 +351,7 @@ class ManualAdjustmentResponse(BaseModel):
 class ManualAdjustmentCreateRequest(BaseModel):
     cycle_id: int
     employee_id: int
-    adjustment_type: str = Field(
-        pattern="^(VACATION|VACATION_BONUS|PRODUCTION_BONUS|EVENT_BONUS)$"
-    )
+    adjustment_type: str = Field(min_length=1, max_length=64, pattern="^[A-Z0-9_]+$")
     description: str | None = Field(default=None, max_length=200)
     units: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=4)
     amount: Decimal = Field(ge=0, max_digits=14, decimal_places=4)
@@ -327,9 +359,7 @@ class ManualAdjustmentCreateRequest(BaseModel):
 
 
 class ManualAdjustmentUpdateRequest(BaseModel):
-    adjustment_type: str = Field(
-        pattern="^(VACATION|VACATION_BONUS|PRODUCTION_BONUS|EVENT_BONUS)$"
-    )
+    adjustment_type: str = Field(min_length=1, max_length=64, pattern="^[A-Z0-9_]+$")
     description: str | None = Field(default=None, max_length=200)
     units: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=4)
     amount: Decimal = Field(ge=0, max_digits=14, decimal_places=4)

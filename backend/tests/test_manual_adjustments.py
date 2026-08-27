@@ -6,6 +6,39 @@ from sqlalchemy import select
 
 from app.models import PayrollAuditLog, PayrollManualAdjustment
 from conftest import login
+
+
+def test_custom_adjustment_type_can_be_used_in_adjustment_editor(client, db_factory):
+    headers = admin_headers(client)
+    custom_type = client.post(
+        "/api/settings/adjustment-types",
+        headers=headers,
+        json={"name": "Cumpleaños", "worked_day_value": 0},
+    )
+    assert custom_type.status_code == 201
+    employee_id, _ = seed_settlement(db_factory)
+    before = client.get(
+        f"/api/liquidations?cycle_id=1&employee_id={employee_id}",
+        headers=headers,
+    ).json()["production_total"]
+    created = client.post(
+        "/api/manual-adjustments",
+        headers=headers,
+        json={
+            "cycle_id": 1,
+            "employee_id": employee_id,
+            "adjustment_type": custom_type.json()["code"],
+            "amount": "1000",
+        },
+    )
+    assert created.status_code == 201
+    assert created.json()["adjustment_type"] == "CUMPLEANOS"
+    assert created.json()["description"] == "Cumpleaños"
+    after = client.get(
+        f"/api/liquidations?cycle_id=1&employee_id={employee_id}",
+        headers=headers,
+    ).json()["production_total"]
+    assert Decimal(after) == Decimal(before)
 from test_settlements import seed_settlement
 
 
@@ -345,6 +378,6 @@ def test_adjustment_types_outside_enabled_adjustments_are_rejected(client, db_fa
             },
         )
 
-        assert response.status_code == 422
+        assert response.status_code == 400
 
 

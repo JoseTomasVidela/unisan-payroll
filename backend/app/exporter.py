@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import csv
+import unicodedata
 from datetime import date
 from decimal import Decimal
 from io import BytesIO, StringIO
 from pathlib import Path
 from xml.sax.saxutils import escape
 from zipfile import ZIP_DEFLATED, ZipFile
+
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
 
 
 BRAND_BLUE = (0.180, 0.525, 0.667)
@@ -295,8 +300,140 @@ def _xlsx_cell_xml(row_index: int, column_index: int, value: str) -> str:
 
 
 def export_xlsx_bytes(settlement: dict[str, object]) -> bytes:
-    headers, rows = settlement_matrix(settlement)
-    worksheet_rows = [headers, *rows]
+    return _export_styled_settlements_xlsx([settlement], _sheet_name(settlement))
+
+
+def export_multiple_xlsx_bytes(settlements: list[dict[str, object]]) -> bytes:
+    return _export_styled_settlements_xlsx(settlements, "Liquidaciones")
+
+
+def _export_styled_settlements_xlsx(
+    settlements: list[dict[str, object]],
+    sheet_name: str,
+) -> bytes:
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = sheet_name[:31]
+    blue_fill = PatternFill("solid", fgColor="9DC3E6")
+    gray_fill = PatternFill("solid", fgColor="D9D9D9")
+    weekend_fill = PatternFill("solid", fgColor="FFF2CC")
+    holiday_fill = PatternFill("solid", fgColor="F4CCCC")
+    title_fill = PatternFill("solid", fgColor="29405A")
+    white_fill = PatternFill("solid", fgColor="FFFFFF")
+    thin = Side(style="thin", color="202020")
+    thick = Side(style="medium", color="000000")
+    summary_labels = {
+        "TOTAL A PAGAR",
+        "VARIABLE DIARIO",
+        "DIA TRABAJADO",
+        "SEMANA CORRIDA",
+        "PRODUCCION TOTAL",
+    }
+
+    for settlement_index, settlement in enumerate(settlements):
+        if settlement_index:
+            worksheet.append([])
+            worksheet.append([])
+        block_start = (
+            1
+            if worksheet.max_row == 1 and worksheet.cell(1, 1).value is None
+            else worksheet.max_row + 1
+        )
+        headers, rows = settlement_matrix(settlement)
+        max_columns = len(headers)
+        employee_name = str(settlement["employee"]["employee_name"])
+        cycle_name = str(settlement["cycle"]["cycle_name"])
+        worksheet.append([f"TRABAJADOR: {employee_name} — {cycle_name}"] + [""] * (max_columns - 1))
+        title_row = worksheet.max_row
+        worksheet.row_dimensions[title_row].height = 22
+        for column in range(1, max_columns + 1):
+            cell = worksheet.cell(title_row, column)
+            cell.fill = title_fill
+            cell.font = Font(color="FFFFFF", bold=True, size=12)
+            cell.alignment = Alignment(vertical="center")
+
+        table_start = worksheet.max_row + 1
+        # The dark block title already identifies worker and cycle. Avoid
+        # repeating the metadata rows inside every exported table.
+        for output_row in [headers, *rows[5:]]:
+            worksheet.append(output_row)
+        block_end = worksheet.max_row
+        status_row = table_start + 1
+        date_metadata = list(settlement["dates"])
+
+        for row_index in range(table_start, block_end + 1):
+            label = str(worksheet.cell(row_index, 1).value or "").upper()
+            is_header = row_index == table_start
+            is_status = row_index == status_row
+            is_summary = label in summary_labels
+            for column in range(1, max_columns + 1):
+                cell = worksheet.cell(row_index, column)
+                cell.alignment = Alignment(
+                    horizontal="center" if column > 1 else "left",
+                    vertical="center",
+                    wrap_text=True,
+                )
+                cell.border = Border(left=thin, right=thin, top=thin, bottom=thin)
+                if is_header:
+                    if column >= 5:
+                        date_item = date_metadata[column - 5]
+                        cell.fill = holiday_fill if date_item.get("is_holiday") else (
+                            weekend_fill if str(date_item.get("weekday", "")).casefold() in {"sab", "dom"} else blue_fill
+                        )
+                    else:
+                        cell.fill = blue_fill if column in {1, 2} else gray_fill
+                    cell.font = Font(bold=True)
+                elif is_status:
+                    cell.fill = blue_fill if column <= 4 else _date_fill(
+                        date_metadata[column - 5], blue_fill, weekend_fill, holiday_fill
+                    )
+                    cell.font = Font(bold=True)
+                elif is_summary:
+                    cell.fill = gray_fill if label in {"TOTAL A PAGAR", "PRODUCCION TOTAL"} else blue_fill
+                    cell.font = Font(bold=label in {"TOTAL A PAGAR", "PRODUCCION TOTAL"})
+                elif row_index > status_row:
+                    if column == 2:
+                        cell.fill = blue_fill
+                    elif column in {3, 4}:
+                        cell.fill = gray_fill
+                    elif column >= 5:
+                        cell.fill = _date_fill(
+                            date_metadata[column - 5], white_fill, weekend_fill, holiday_fill
+                        )
+
+        for row_index in range(block_start, block_end + 1):
+            for column in range(1, max_columns + 1):
+                cell = worksheet.cell(row_index, column)
+                current = cell.border
+                cell.border = Border(
+                    left=thick if column == 1 else current.left,
+                    right=thick if column == max_columns else current.right,
+                    top=thick if row_index == block_start else current.top,
+                    bottom=thick if row_index == block_end else current.bottom,
+                )
+
+    worksheet.column_dimensions["A"].width = 40
+    worksheet.column_dimensions["B"].width = 12
+    worksheet.column_dimensions["C"].width = 12
+    worksheet.column_dimensions["D"].width = 14
+    max_sheet_columns = max((4 + len(item["dates"]) for item in settlements), default=4)
+    for column in range(5, max_sheet_columns + 1):
+        worksheet.column_dimensions[get_column_letter(column)].width = 8
+    worksheet.sheet_view.showGridLines = False
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
+def _date_fill(date_item, weekday_fill, weekend_fill, holiday_fill):
+    if date_item.get("is_holiday"):
+        return holiday_fill
+    if str(date_item.get("weekday", "")).casefold() in {"sab", "dom"}:
+        return weekend_fill
+    return weekday_fill
+
+
+def _export_xlsx_rows(worksheet_rows: list[list[str]], sheet_name: str) -> bytes:
     sheet_rows_xml: list[str] = []
     for row_index, row in enumerate(worksheet_rows, start=1):
         cells = [
@@ -316,7 +453,7 @@ def export_xlsx_bytes(settlement: dict[str, object]) -> bytes:
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
         'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-        f'<sheets><sheet name="{escape(_sheet_name(settlement))}" sheetId="1" r:id="rId1"/></sheets>'
+        f'<sheets><sheet name="{escape(sheet_name)}" sheetId="1" r:id="rId1"/></sheets>'
         "</workbook>"
     )
 
@@ -575,6 +712,54 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
         row for row in settlement["rows"]
         if str(row["row_type"]).startswith("adjustment_") and Decimal(str(row["total"] or 0)) != 0
     ]
+    unibox_concepts = {
+        "evento",
+        "punto de agua",
+        "basurero grande",
+        "basurero chico",
+        "fosa",
+        "aux evento",
+        "aux punto de agua",
+        "aux basurero grande",
+        "aux basurero chico",
+        "aux fosa",
+        "bono evento",
+    }
+    unibox_concept_codes = {
+        "EVENT",
+        "WATER_POINT",
+        "LARGE_TRASH_BIN",
+        "SMALL_TRASH_BIN",
+        "FOSA",
+    }
+
+    def _normalized_concept_name(value: object) -> str:
+        normalized = unicodedata.normalize("NFD", str(value or ""))
+        return " ".join(
+            "".join(char for char in normalized if not unicodedata.combining(char))
+            .casefold()
+            .split()
+        )
+
+    def _is_unibox_concept(row: dict[str, object]) -> bool:
+        concept_code = str(row.get("concept_code") or "").strip().upper()
+        row_type = str(row.get("row_type") or "").strip().casefold()
+        if concept_code in unibox_concept_codes or row_type == "adjustment_event_bonus":
+            return True
+        names = {
+            _normalized_concept_name(row.get("concept_name")),
+            _normalized_concept_name(row.get("adjustment_name")),
+        }
+        return any(
+            name == target or name.endswith(f" - {target}")
+            for name in names if name
+            for target in unibox_concepts
+        )
+
+    unibox_total = sum(
+        (Decimal(str(row["total"] or 0)) for row in [*concept_rows, *adjustment_rows] if _is_unibox_concept(row)),
+        Decimal("0"),
+    )
 
     def _build_main_rows() -> list[list[str]]:
         rows: list[list[str]] = []
@@ -600,6 +785,15 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
             _format_peso_number(week_corrida_row["rate"]),
             _format_peso_number(amount),
             _format_peso_number(amount),
+        ]]
+
+    def _build_unibox_rows() -> list[list[str]]:
+        return [[
+            "UNIBOX",
+            "",
+            "",
+            _format_peso_number(unibox_total),
+            _format_peso_number(unibox_total),
         ]]
 
     def _build_adjustment_rows() -> list[list[str]]:
@@ -667,6 +861,7 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
 
     main_rows = _build_main_rows()
     week_rows = _build_week_corrida_rows()
+    unibox_rows = _build_unibox_rows()
     pdf_adjustment_rows = _build_adjustment_rows()
 
     pages: list[str] = []
@@ -692,6 +887,11 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
         ensure_space(_estimate_section_height(len(week_rows)))
         y = _draw_table(stream, week_rows, y, week_table_headers)
 
+    if unibox_rows:
+        y -= 8
+        ensure_space(_estimate_section_height(len(unibox_rows)))
+        y = _draw_table(stream, unibox_rows, y, week_table_headers)
+
     if pdf_adjustment_rows:
         y -= 8
         ensure_space(_estimate_section_height(len(pdf_adjustment_rows)))
@@ -702,7 +902,7 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
     total_table_width = sum(table_col_widths)
     left_total_width = sum(table_col_widths[:4])
     right_total_width = table_col_widths[4]
-    final_total = Decimal(str(settlement["production_total"]))
+    final_total = Decimal(str(settlement["production_total"])) + unibox_total
 
     ensure_space(110)
     _rect(stream, margin, y - total_box_height, left_total_width, total_box_height, (1.0, 0.973, 0.710))
