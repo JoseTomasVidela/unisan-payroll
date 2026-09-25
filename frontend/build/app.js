@@ -1370,7 +1370,7 @@ function updateContextActionState() {
     liquidationExportExcelBtn.disabled = !hasSelection;
     liquidationExportPdfBtn.disabled = !hasSelection;
     liquidationEmailSheetBtn.disabled = !hasSingleSelection;
-    liquidationEmailSettlementBtn.disabled = !hasSingleSelection;
+    liquidationEmailSettlementBtn.disabled = !displayedContextSettlements.length && !hasSingleSelection;
     liquidationSoftlandBtn.disabled = false;
 }
 
@@ -1383,6 +1383,7 @@ let rows = [];
 let selectedSearchCycleIds = [];
 let selectedSearchEmployeeIds = [];
 let displayedSearchSettlements = [];
+let displayedContextSettlements = [];
 let editModalCycleId = null;
 let editModalEmployeeId = null;
 let editModalDates = [];
@@ -1421,7 +1422,7 @@ function updateSearchActionState() {
     searchExportExcelBtn.disabled = !displayedSearchSettlements.length && !single;
     searchExportPdfBtn.disabled = !displayedSearchSettlements.length && !single;
     searchEmailSheetBtn.disabled = !single;
-    searchEmailSettlementBtn.disabled = !single;
+    searchEmailSettlementBtn.disabled = !displayedSearchSettlements.length && !single;
     searchSoftlandBtn.disabled = false;
 }
 
@@ -2055,6 +2056,7 @@ async function refreshSettlementIfNeeded(costCenter, roleType, cycleId) {
 
 async function loadSettlement() {
     editMode = false;
+    displayedContextSettlements = [];
     if (!currentContext || !liquidationCycle.value || !liquidationEmployee.value) {
         setActiveSheet({
             mode: "context",
@@ -2094,9 +2096,17 @@ async function loadSettlement() {
         }
         if (!settlements.length) {
             clearSettlement();
+            updateContextActionState();
             return;
         }
+        displayedContextSettlements = settlements.map(settlement => ({
+            cycleId: Number(settlement.cycle.id),
+            employeeId: Number(settlement.employee.id),
+            costCenter: currentContext.costCenter,
+            roleType: currentContext.roleType
+        }));
         renderContextSettlementStack(settlements);
+        updateContextActionState();
         return;
     }
     const query = new URLSearchParams({
@@ -2105,7 +2115,15 @@ async function loadSettlement() {
         cost_center: currentContext.costCenter,
         role_type: currentContext.roleType
     });
-    applySettlement(await apiRequest(`/settlements?${query}`));
+    const settlement = await apiRequest(`/settlements?${query}`);
+    displayedContextSettlements = [{
+        cycleId: Number(settlement.cycle.id),
+        employeeId: Number(settlement.employee.id),
+        costCenter: currentContext.costCenter,
+        roleType: currentContext.roleType
+    }];
+    applySettlement(settlement);
+    updateContextActionState();
 }
 
 async function loadSearchSettlement() {
@@ -3576,29 +3594,49 @@ searchExportPdfBtn?.addEventListener("click", () => {
 
 async function sendSearchEmail(emailType) {
     if (!hasPermission("payroll.email")) return;
-    if (!isSingleSearchSelection()) {
+    const isSheet = emailType === "SHEET";
+    if (isSheet && !isSingleSearchSelection()) {
         alert("Seleccione un solo ciclo y un solo trabajador.");
         return;
     }
+    const emailItems = displayedSearchSettlements.length
+        ? displayedSearchSettlements
+        : [{cycleId: Number(selectedSearchCycleIds[0]), employeeId: Number(selectedSearchEmployeeIds[0])}];
+    if (!emailItems.length || emailItems.some(item => !item.cycleId || !item.employeeId)) {
+        alert("Seleccione al menos una liquidación.");
+        return;
+    }
+    const useBatch = !isSheet && (!isSingleSearchSelection() || emailItems.length > 1);
     const employee = searchEmployeesCache.find(
         item => Number(item.id) === Number(selectedSearchEmployeeIds[0])
     );
-    const isSheet = emailType === "SHEET";
-    const recipient = isSheet ? "jose.videla@acsa-tec.cl" : "rrhh@unisan.cl";
+    const recipient = isSheet ? "jose.videla@acsa-tec.cl" : employee?.email;
     const action = isSheet ? "Enviar Planilla" : "Enviar Liquidación";
-    if (!confirm(`¿${action} de ${employee?.employee_name || "trabajador seleccionado"} por email a ${recipient}?`)) return;
+    const confirmation = useBatch
+        ? `¿Enviar ${emailItems.length} liquidaciones por email a los correos de sus respectivos trabajadores?`
+        : `¿${action} de ${employee?.employee_name || "trabajador seleccionado"} por email a ${recipient || "su correo registrado"}?`;
+    if (!confirm(confirmation)) return;
     searchEmailSheetBtn.disabled = true;
     searchEmailSettlementBtn.disabled = true;
     try {
-        const result = await apiRequest("/email/settlement", {
+        const result = await apiRequest(useBatch
+            ? "/email/settlements/batch"
+            : "/email/settlement", {
         method: "POST",
-        body: JSON.stringify({
+        body: JSON.stringify(useBatch ? {
+            items: emailItems.map(item => ({
+                cycle_id: Number(item.cycleId),
+                employee_id: Number(item.employeeId)
+            }))
+        } : {
             cycle_id: Number(selectedSearchCycleIds[0]),
             employee_id: Number(selectedSearchEmployeeIds[0]),
             email_type: emailType
         })
         });
-        alert(`${isSheet ? "Planilla" : "Liquidación"} enviada exitosamente a ${result.recipient_name} (${result.recipient}).`);
+        alert(result.sent_count
+            ? `${result.sent_count} liquidaciones enviadas exitosamente a sus respectivos trabajadores.`
+            : `${isSheet ? "Planilla" : "Liquidación"} enviada exitosamente a ${result.recipient_name} (${result.recipient}).`);
     } catch (error) {
         alert(error.message);
     } finally {
@@ -3694,24 +3732,45 @@ liquidationExportPdfBtn?.addEventListener("click", () => {
 
 async function sendContextEmail(emailType) {
     if (!hasPermission("payroll.email")) return;
+    const isSheet = emailType === "SHEET";
     if (!currentContext || !liquidationCycle.value || !liquidationEmployee.value
-        || liquidationEmployee.value === "__ALL__") {
+        || (isSheet && liquidationEmployee.value === "__ALL__")) {
         alert("Seleccione un ciclo y un trabajador.");
         return;
     }
+    const emailItems = displayedContextSettlements.length
+        ? displayedContextSettlements
+        : [{
+            cycleId: Number(liquidationCycle.value),
+            employeeId: Number(liquidationEmployee.value),
+            costCenter: currentContext.costCenter,
+            roleType: currentContext.roleType
+        }];
+    const useBatch = !isSheet && (liquidationEmployee.value === "__ALL__" || emailItems.length > 1);
     const employee = contextEmployeesCache.find(
         item => Number(item.id) === Number(liquidationEmployee.value)
     );
-    const isSheet = emailType === "SHEET";
-    const recipient = isSheet ? "jose.videla@acsa-tec.cl" : "rrhh@unisan.cl";
+    const recipient = isSheet ? "jose.videla@acsa-tec.cl" : employee?.email;
     const action = isSheet ? "Enviar Planilla" : "Enviar Liquidación";
-    if (!confirm(`¿${action} de ${employee?.employee_name || "trabajador seleccionado"} por email a ${recipient}?`)) return;
+    const confirmation = useBatch
+        ? `¿Enviar ${emailItems.length} liquidaciones por email a los correos de sus respectivos trabajadores?`
+        : `¿${action} de ${employee?.employee_name || "trabajador seleccionado"} por email a ${recipient || "su correo registrado"}?`;
+    if (!confirm(confirmation)) return;
     liquidationEmailSheetBtn.disabled = true;
     liquidationEmailSettlementBtn.disabled = true;
     try {
-        const result = await apiRequest("/email/settlement", {
+        const result = await apiRequest(useBatch
+            ? "/email/settlements/batch"
+            : "/email/settlement", {
         method: "POST",
-        body: JSON.stringify({
+        body: JSON.stringify(useBatch ? {
+            items: emailItems.map(item => ({
+                cycle_id: Number(item.cycleId),
+                employee_id: Number(item.employeeId),
+                cost_center: item.costCenter,
+                role_type: item.roleType
+            }))
+        } : {
             cycle_id: Number(liquidationCycle.value),
             employee_id: Number(liquidationEmployee.value),
             cost_center: currentContext.costCenter,
@@ -3719,7 +3778,9 @@ async function sendContextEmail(emailType) {
             email_type: emailType
         })
         });
-        alert(`${isSheet ? "Planilla" : "Liquidación"} enviada exitosamente a ${result.recipient_name} (${result.recipient}).`);
+        alert(result.sent_count
+            ? `${result.sent_count} liquidaciones enviadas exitosamente a sus respectivos trabajadores.`
+            : `${isSheet ? "Planilla" : "Liquidación"} enviada exitosamente a ${result.recipient_name} (${result.recipient}).`);
     } catch (error) {
         alert(error.message);
     } finally {

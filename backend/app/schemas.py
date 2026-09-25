@@ -78,6 +78,17 @@ class SettlementEmailRequest(BaseModel):
     email_type: str = Field(default="SETTLEMENT", pattern="^(SETTLEMENT|SHEET)$")
 
 
+class SettlementEmailBatchItem(BaseModel):
+    cycle_id: int
+    employee_id: int
+    cost_center: str | None = None
+    role_type: str | None = None
+
+
+class SettlementEmailBatchRequest(BaseModel):
+    items: list[SettlementEmailBatchItem] = Field(min_length=1)
+
+
 class PermissionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

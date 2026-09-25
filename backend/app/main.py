@@ -103,6 +103,7 @@ from .schemas import (
     SearchEmployeeOptionResponse,
     SearchResponse,
     SettlementCellUpdateRequest,
+    SettlementEmailBatchRequest,
     SettlementStatusUpdateRequest,
     SettlementEmailRequest,
     SettlementResponse,
@@ -1091,8 +1092,16 @@ def email_settlement(
         role_type=normalized_role_type,
     )
     is_sheet = payload.email_type == "SHEET"
-    recipient = "jose.videla@acsa-tec.cl" if is_sheet else "rrhh@unisan.cl"
-    recipient_name = "José Tomás Videla" if is_sheet else "RRHH Unisan"
+    recipient_name = "José Tomás Videla" if is_sheet else settlement["employee"]["employee_name"]
+    recipient = "jose.videla@acsa-tec.cl" if is_sheet else normalize_email(settlement["employee"].get("email"))
+    if not recipient:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Trabajador {recipient_name} no tiene un correo registrado, por favor ingrese "
+                "un correo válido en la sección de Trabajadores y vuelva a intentarlo."
+            ),
+        )
     file_name = export_file_name(
         settlement=settlement,
         file_format="pdf",
@@ -1140,6 +1149,86 @@ def email_settlement(
     ))
     db.commit()
     return {"status": "sent", "recipient": recipient, "recipient_name": recipient_name}
+
+
+@app.post("/api/email/settlements/batch")
+def email_settlements_batch(
+    payload: SettlementEmailBatchRequest,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    current_user: User = Depends(require_permission("payroll.email")),
+) -> dict[str, object]:
+    deliveries = []
+    seen = set()
+    for item in payload.items:
+        key = (item.cycle_id, item.employee_id, item.cost_center, item.role_type)
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized_cost_center = normalize_cost_center(item.cost_center)
+        normalized_role_type = normalize_role_type(item.role_type)
+        settlement = build_settlement_payload(
+            db,
+            cycle_id=item.cycle_id,
+            employee_id=item.employee_id,
+            cost_center=normalized_cost_center,
+            role_type=normalized_role_type,
+        )
+        employee_name = settlement["employee"]["employee_name"]
+        recipient = normalize_email(settlement["employee"].get("email"))
+        if not recipient:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Trabajador {employee_name} no tiene un correo registrado, por favor ingrese "
+                    "un correo válido en la sección de Trabajadores y vuelva a intentarlo."
+                ),
+            )
+        deliveries.append((item, settlement, normalized_cost_center, normalized_role_type, recipient))
+
+    month_names = (
+        "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
+        "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE",
+    )
+    sent = []
+    try:
+        for item, settlement, cost_center, role_type, recipient in deliveries:
+            employee_name = settlement["employee"]["employee_name"]
+            cycle_date = settlement["cycle"]["start_date"]
+            period = f"{month_names[cycle_date.month - 1]}/{cycle_date.year}"
+            send_settlement_email(
+                settings,
+                recipient=recipient,
+                recipient_name=employee_name,
+                pdf_content=export_pdf_bytes(settlement),
+                pdf_file_name=export_file_name(
+                    settlement=settlement,
+                    file_format="pdf",
+                    cost_center=cost_center,
+                    role_type=role_type,
+                ),
+                subject=f"Planilla de Liquidación - {employee_name} - {period}",
+                body=f"Respaldo de producción {employee_name} correspondiente a {period}",
+            )
+            sent.append({"employee_id": item.employee_id, "recipient_name": employee_name, "recipient": recipient})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (OSError, smtplib.SMTPException) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="El servidor de correo rechazó o no pudo completar el envío SMTP.",
+        ) from exc
+
+    for delivery in sent:
+        db.add(PayrollAuditLog(
+            user_id=current_user.id,
+            action_type="SEND_EMAIL",
+            table_name="payroll_records",
+            record_id=delivery["employee_id"],
+            new_value=f"SETTLEMENT a {delivery['recipient']}",
+        ))
+    db.commit()
+    return {"status": "sent", "sent_count": len(sent), "deliveries": sent}
 
 
 @app.get("/api/users", response_model=list[UserResponse])
