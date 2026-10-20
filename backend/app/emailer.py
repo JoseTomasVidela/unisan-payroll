@@ -39,6 +39,7 @@ def send_settlement_email(
     *,
     recipient: str,
     recipient_name: str,
+    cc_recipient: str | None = None,
     pdf_content: bytes,
     pdf_file_name: str,
     subject: str = "Liquidación - Unisan Payroll",
@@ -55,6 +56,8 @@ def send_settlement_email(
     message = EmailMessage()
     message["From"] = sender
     message["To"] = recipient
+    if cc_recipient:
+        message["Cc"] = cc_recipient
     message["Subject"] = subject
     message.set_content(body)
     message.add_attachment(

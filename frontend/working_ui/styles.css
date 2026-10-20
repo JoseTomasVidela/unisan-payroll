@@ -25,10 +25,13 @@ body {
 }
 
 .login-logo {
-    color: #2e86aa;
-    font-size: 30px;
-    font-weight: 800;
     margin-bottom: 18px;
+}
+
+.login-logo img {
+    display: block;
+    width: 190px;
+    height: auto;
 }
 
 .login-card h1 {
@@ -87,24 +90,27 @@ body {
 
 .logo {
     height: 52px;
-    background: #2e86aa;
+    background: #fff;
     display: flex;
     align-items: center;
-    padding-left: 18px;
-    font-size: 23px;
-    font-weight: 800;
-    letter-spacing: .4px;
-    color: white;
+    padding: 7px 16px;
     overflow: hidden;
 }
 
-.app-shell.sidebar-collapsed .logo {
-    font-size: 0;
+.logo img {
+    display: block;
+    width: 150px;
+    height: auto;
+    flex-shrink: 0;
 }
 
-.app-shell.sidebar-collapsed .logo::before {
-    content: "U";
-    font-size: 23px;
+.app-shell.sidebar-collapsed .logo {
+    padding: 9px 8px;
+}
+
+.app-shell.sidebar-collapsed .logo img {
+    width: 46px;
+    max-width: none;
 }
 
 .profile {

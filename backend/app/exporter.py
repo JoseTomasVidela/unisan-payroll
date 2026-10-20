@@ -673,10 +673,14 @@ def export_pdf_bytes(settlement: dict[str, object]) -> bytes:
 
     def _draw_header(stream: list[str], page_number: int, total_pages: int) -> int:
         top = page_height - margin
-        logo_width = 102
-        logo_height = 36
+        logo_width = 112
+        if logo_bytes:
+            source_width, source_height = _jpeg_dimensions(logo_bytes)
+            logo_height = max(1, round(logo_width * source_height / source_width))
+        else:
+            logo_height = 30
         _draw_logo(stream, margin, top - logo_height, logo_width, logo_height)
-        header_x = margin + 118
+        header_x = margin + logo_width + 16
         current_y = top - 8
         for line in COMPANY_HEADER_LINES:
             _text(stream, header_x, current_y, line, size=10, font="F2", color=BRAND_BLUE)

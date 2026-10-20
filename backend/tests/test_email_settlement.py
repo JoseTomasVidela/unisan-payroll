@@ -41,6 +41,7 @@ def test_sheet_keeps_fixed_recipient_and_settlement_uses_worker_email(
         assert response.status_code == 200
 
     assert deliveries[0]["recipient"] == "jose.videla@acsa-tec.cl"
+    assert deliveries[0]["cc_recipient"] is None
     assert deliveries[0]["pdf_file_name"].startswith("Planilla-")
     assert deliveries[0]["pdf_content"].startswith(b"%PDF-")
     assert deliveries[0]["subject"] == "Planilla de Liquidación - Chofer Uno - MAYO/2026"
@@ -49,6 +50,7 @@ def test_sheet_keeps_fixed_recipient_and_settlement_uses_worker_email(
     assert b"Actividad" not in deliveries[0]["pdf_content"]
     assert deliveries[1]["recipient"] == "chofer.uno@example.com"
     assert deliveries[1]["recipient_name"] == "Chofer Uno"
+    assert deliveries[1]["cc_recipient"] == "rrhh@unisan.cl"
     assert not deliveries[1]["pdf_file_name"].startswith("Planilla-")
     assert deliveries[1]["pdf_content"].startswith(b"%PDF-")
     assert deliveries[1]["subject"] == "Planilla de Liquidación - Chofer Uno - MAYO/2026"
@@ -120,6 +122,7 @@ def test_batch_sends_each_pdf_only_to_its_corresponding_worker(client, db_factor
         ("Chofer Uno", "chofer.uno@example.com"),
         ("Auxiliar Uno", "auxiliar.uno@example.com"),
     ]
+    assert [item["cc_recipient"] for item in deliveries] == ["rrhh@unisan.cl", "rrhh@unisan.cl"]
     assert b"Chofer Uno" in deliveries[0]["pdf_content"]
     assert b"Auxiliar Uno" not in deliveries[0]["pdf_content"]
     assert b"Auxiliar Uno" in deliveries[1]["pdf_content"]

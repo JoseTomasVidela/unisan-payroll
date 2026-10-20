@@ -1128,6 +1128,7 @@ def email_settlement(
             settings,
             recipient=recipient,
             recipient_name=recipient_name,
+            cc_recipient=None if is_sheet else "rrhh@unisan.cl",
             pdf_content=export_sheet_pdf_bytes(settlement) if is_sheet else export_pdf_bytes(settlement),
             pdf_file_name=file_name,
             subject=email_subject,
@@ -1200,6 +1201,7 @@ def email_settlements_batch(
                 settings,
                 recipient=recipient,
                 recipient_name=employee_name,
+                cc_recipient="rrhh@unisan.cl",
                 pdf_content=export_pdf_bytes(settlement),
                 pdf_file_name=export_file_name(
                     settlement=settlement,
