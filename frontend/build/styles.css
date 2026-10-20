@@ -25,13 +25,17 @@ body {
 }
 
 .login-logo {
+    display: flex;
+    justify-content: center;
     margin-bottom: 18px;
 }
 
 .login-logo img {
     display: block;
     width: 190px;
+    max-width: 100%;
     height: auto;
+    object-fit: contain;
 }
 
 .login-card h1 {
@@ -100,7 +104,9 @@ body {
 .logo img {
     display: block;
     width: 150px;
+    max-width: 100%;
     height: auto;
+    object-fit: contain;
     flex-shrink: 0;
 }
 
