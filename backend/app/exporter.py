@@ -34,7 +34,7 @@ STATUS_LABELS = {
     "feriado": "Feriado",
     "licencia": "Licencia",
 }
-LOGO_PATH = Path(__file__).resolve().parents[2] / "grafic" / "UNISANLOGO.jpg"
+LOGO_PATH = Path(__file__).resolve().parent / "assets" / "unisan-logo.jpg"
 COMPANY_HEADER_LINES = [
     "MOVILES DE CHILE S.A.",
     "RUT: 96.702.560-7",

@@ -143,6 +143,8 @@ def test_export_individual_liquidation_pdf(client, db_factory):
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("application/pdf")
     assert response.content.startswith(b"%PDF-")
+    assert b"/Subtype /Image" in response.content
+    assert b"[LOGO UNISAN]" not in response.content
     assert 'filename="Chofer Uno-Junio 2026.pdf"' in response.headers["content-disposition"]
     assert b"MOVILES DE CHILE S.A." in response.content
     assert b"ANEXO DE LIQUIDACION DE SUELDO MES DE JUNIO 2026" in response.content
