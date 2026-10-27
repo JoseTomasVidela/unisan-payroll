@@ -369,6 +369,17 @@ def employee_display_name(employee: Employee) -> str:
     return full_name or employee.employee_name
 
 
+def employee_surname_first_display_name(employee: Employee) -> str:
+    parts = [
+        employee.paternal_surname,
+        employee.maternal_surname,
+        employee.first_name,
+        employee.middle_name,
+    ]
+    full_name = " ".join(part.strip() for part in parts if part and part.strip())
+    return full_name or employee.employee_name
+
+
 def grouped_employee_display_name(matches: list[Employee]) -> str:
     for employee in matches:
         full_name = employee_display_name(employee)
@@ -1637,7 +1648,7 @@ def list_workers(
         rows.append(
             WorkerListItemResponse(
                 id=worker.id,
-                employee_name=grouped_employee_display_name(matches),
+                employee_name=employee_surname_first_display_name(worker),
                 contract_type=next((item.contract_type for item in matches if item.contract_type), None),
                 rut=next((item.rut for item in matches if item.rut), None),
                 email=next((item.email for item in matches if item.email), None),

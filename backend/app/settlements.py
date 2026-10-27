@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 import hashlib
 import unicodedata
 
@@ -27,6 +27,13 @@ from .rates import ConceptRateService
 from .week_corrida import WeekCorridaCalculator
 
 ZERO = Decimal("0")
+PESO = Decimal("1")
+
+
+def round_peso(value: Decimal) -> Decimal:
+    return value.quantize(PESO, rounding=ROUND_HALF_UP)
+
+
 RESERVED_RECORD_FIELDS = {"retrieval_flag", "septic_tank_flag"}
 NON_CONCEPT_RECORD_FIELDS = {
     "id",
@@ -73,6 +80,7 @@ WORKED_DAY_ZERO_STATUSES = {
     "descanso",
 }
 WORKED_DAY_ONE_STATUSES = {
+    "ok",
     "sin produccion",
     "inasistencia",
     "permiso",
@@ -549,7 +557,7 @@ class SettlementEngine:
                 if value != ZERO:
                     has_activity = True
                 units += value
-                variable_daily[work_date] += value * rate
+                variable_daily[work_date] += round_peso(value * rate)
                 daily_values.append({"date": work_date, "value": value, "editable": False})
             if not include_empty and not has_activity:
                 continue
@@ -563,7 +571,13 @@ class SettlementEngine:
                     "db_field": concept.db_field,
                     "units": units,
                     "rate": rate,
-                    "total": units * rate,
+                    "total": sum(
+                        (
+                            round_peso(Decimal(str(item["value"])) * rate)
+                            for item in daily_values
+                        ),
+                        ZERO,
+                    ),
                     "editable": True,
                     "daily_values": daily_values,
                 }
@@ -602,7 +616,9 @@ class SettlementEngine:
             worked_day=worked_day,
         )
         adjustment_line_totals = {
-            adjustment.id: (adjustment.units or Decimal("1")) * adjustment.amount
+            adjustment.id: round_peso(
+                (adjustment.units or Decimal("1")) * adjustment.amount
+            )
             for adjustment in adjustments
         }
         production_adjustment_types = PRODUCTION_ADJUSTMENT_TYPES | {
@@ -1005,11 +1021,15 @@ class SettlementEngine:
         status: str | None,
         variable_amount: Decimal,
     ) -> Decimal:
-        normalized_status = SettlementEngine._normalize_status(status)
-        if normalized_status in WORKED_DAY_ZERO_STATUSES:
-            return ZERO
-        if normalized_status in WORKED_DAY_ONE_STATUSES:
+        normalized_statuses = {
+            SettlementEngine._normalize_status(item)
+            for item in (status or "").split("/")
+            if item.strip()
+        }
+        if normalized_statuses & WORKED_DAY_ONE_STATUSES:
             return Decimal("1")
+        if normalized_statuses & WORKED_DAY_ZERO_STATUSES:
+            return ZERO
         if variable_amount < Decimal("1"):
             return ZERO
         return Decimal("1")

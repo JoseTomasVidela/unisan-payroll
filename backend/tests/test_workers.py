@@ -182,7 +182,7 @@ def test_workers_list_prefers_full_name_when_available(client, db_factory):
 
     listed = client.get("/api/workers", headers=admin_headers(client))
     assert listed.status_code == 200
-    assert listed.json()[0]["employee_name"] == "Alejandro Antonio Escobar Osorio"
+    assert listed.json()[0]["employee_name"] == "Escobar Osorio Alejandro Antonio"
 
 
 def test_rrhh_can_create_workers(client):

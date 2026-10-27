@@ -3,9 +3,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP
 
 ZERO = Decimal("0")
+PESO = Decimal("1")
 
 
 @dataclass(frozen=True)
@@ -100,7 +101,9 @@ class WeekCorridaCalculator:
             )
             amount = ZERO
             if worked_total > ZERO and payable_days > 0:
-                amount = (variable_total / worked_total) * Decimal(payable_days)
+                amount = (
+                    (variable_total / worked_total) * Decimal(payable_days)
+                ).quantize(PESO, rounding=ROUND_HALF_UP)
 
             segments.append(
                 WeekCorridaSegment(
