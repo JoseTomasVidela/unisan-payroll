@@ -36,6 +36,15 @@ def easter_sunday(year: int) -> date:
     return date(year, month, day)
 
 
+def monday_shifted_holiday(year: int, month: int, day: int) -> date:
+    holiday = date(year, month, day)
+    if holiday.weekday() in {1, 2, 3}:
+        return holiday - timedelta(days=holiday.weekday())
+    if holiday.weekday() == 4:
+        return holiday + timedelta(days=3)
+    return holiday
+
+
 def chile_public_holidays(year: int) -> set[date]:
     easter = easter_sunday(year)
     return {
@@ -44,10 +53,12 @@ def chile_public_holidays(year: int) -> set[date]:
         easter - timedelta(days=1),  # Sabado Santo
         date(year, 5, 1),
         date(year, 5, 21),
+        monday_shifted_holiday(year, 6, 29),
         date(year, 7, 16),
         date(year, 8, 15),
         date(year, 9, 18),
         date(year, 9, 19),
+        monday_shifted_holiday(year, 10, 12),
         date(year, 10, 31),
         date(year, 11, 1),
         date(year, 12, 8),

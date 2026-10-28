@@ -22,6 +22,19 @@ def test_list_holidays_returns_default_chile_and_world_rows(client):
     assert any(item["holiday_scope"] == "WORLD" and item["holiday_name"] == "Christmas Day" for item in body)
 
 
+def test_list_holidays_includes_october_12_for_2026(client):
+    response = client.get("/api/holidays?year=2026&month=10", headers=admin_headers(client))
+
+    assert response.status_code == 200
+    assert any(
+        item["holiday_date"] == "2026-10-12"
+        and item["holiday_scope"] == "CHILE"
+        and item["holiday_name"] == "Encuentro de Dos Mundos"
+        and item["active"] is True
+        for item in response.json()
+    )
+
+
 def test_admin_can_create_and_update_custom_holiday(client):
     created = client.post(
         "/api/holidays",

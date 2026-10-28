@@ -7,7 +7,7 @@ from sqlalchemy import extract, inspect, select
 from sqlalchemy.orm import Session
 
 from .models import PayrollHoliday
-from .week_corrida import easter_sunday
+from .week_corrida import easter_sunday, monday_shifted_holiday
 
 HOLIDAY_SCOPE_CHILE = "CHILE"
 HOLIDAY_SCOPE_WORLD = "WORLD"
@@ -34,10 +34,20 @@ def chile_default_holidays(year: int) -> list[DefaultHoliday]:
         DefaultHoliday(easter - date.resolution, "Sabado Santo", HOLIDAY_SCOPE_CHILE),
         DefaultHoliday(date(year, 5, 1), "Dia del Trabajador", HOLIDAY_SCOPE_CHILE),
         DefaultHoliday(date(year, 5, 21), "Glorias Navales", HOLIDAY_SCOPE_CHILE),
+        DefaultHoliday(
+            monday_shifted_holiday(year, 6, 29),
+            "San Pedro y San Pablo",
+            HOLIDAY_SCOPE_CHILE,
+        ),
         DefaultHoliday(date(year, 7, 16), "Virgen del Carmen", HOLIDAY_SCOPE_CHILE),
         DefaultHoliday(date(year, 8, 15), "Asuncion", HOLIDAY_SCOPE_CHILE),
         DefaultHoliday(date(year, 9, 18), "Independencia Nacional", HOLIDAY_SCOPE_CHILE),
         DefaultHoliday(date(year, 9, 19), "Glorias del Ejercito", HOLIDAY_SCOPE_CHILE),
+        DefaultHoliday(
+            monday_shifted_holiday(year, 10, 12),
+            "Encuentro de Dos Mundos",
+            HOLIDAY_SCOPE_CHILE,
+        ),
         DefaultHoliday(date(year, 10, 31), "Dia de las Iglesias Evangelicas", HOLIDAY_SCOPE_CHILE),
         DefaultHoliday(date(year, 11, 1), "Dia de Todos los Santos", HOLIDAY_SCOPE_CHILE),
         DefaultHoliday(date(year, 12, 8), "Inmaculada Concepcion", HOLIDAY_SCOPE_CHILE),
