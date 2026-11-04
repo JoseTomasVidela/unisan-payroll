@@ -1603,7 +1603,7 @@ def search_employee_options(
         rows.append(
             SearchEmployeeOptionResponse(
                 id=worker.id,
-                employee_name=worker.employee_name,
+                employee_name=employee_surname_first_display_name(worker),
                 contract_type=next((item.contract_type for item in matches if item.contract_type), None),
                 rut=next((item.rut for item in matches if item.rut), None),
                 email=next((item.email for item in matches if item.email), None),

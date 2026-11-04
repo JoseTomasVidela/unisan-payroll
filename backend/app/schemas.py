@@ -201,6 +201,7 @@ class EmployeeOptionResponse(BaseModel):
     rut: str | None = None
     email: str | None = None
     cargo: str | None = None
+    cost_center: str | None = None
 
 
 class WorkerListItemResponse(BaseModel):

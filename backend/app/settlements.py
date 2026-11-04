@@ -173,10 +173,19 @@ class SettlementEngine:
         results = []
         for matches in grouped.values():
             worker = min(matches, key=lambda item: item.id)
+            surname_first_parts = [
+                worker.paternal_surname,
+                worker.maternal_surname,
+                worker.first_name,
+                worker.middle_name,
+            ]
+            surname_first_name = " ".join(
+                part.strip() for part in surname_first_parts if part and part.strip()
+            ) or worker.employee_name
             results.append(
                 Employee(
                     id=worker.id,
-                    employee_name=worker.employee_name,
+                    employee_name=surname_first_name,
                     role_type=role_type,
                     contract_type=next((item.contract_type for item in matches if item.contract_type), None),
                     rut=next((item.rut for item in matches if item.rut), None),

@@ -554,6 +554,32 @@ def test_search_employee_options_use_real_workers_and_filters(client, db_factory
     assert response.json() == [{"id": assistant_id, "employee_name": "Auxiliar Uno", "contract_type": None, "rut": None, "email": None, "cargo": None, "cost_center": None}]
 
 
+def test_liquidation_employee_options_display_surnames_before_given_names(client, db_factory):
+    driver_id, _ = seed_settlement(db_factory)
+    with db_factory() as db:
+        driver = db.get(Employee, driver_id)
+        driver.first_name = "Alejandro"
+        driver.middle_name = "Antonio"
+        driver.paternal_surname = "Escobar"
+        driver.maternal_surname = "Osorio"
+        db.commit()
+
+    headers = auth_headers(client)
+    context_response = client.get(
+        "/api/settlements/employees?cycle_id=1&cost_center=DR&role_type=DRIVER",
+        headers=headers,
+    )
+    search_response = client.get(
+        "/api/search/employees?cycle_from_id=1&cycle_to_id=1&cost_center=DR&role_type=DRIVER",
+        headers=headers,
+    )
+
+    assert context_response.status_code == 200
+    assert search_response.status_code == 200
+    assert context_response.json()[0]["employee_name"] == "Escobar Osorio Alejandro Antonio"
+    assert search_response.json()[0]["employee_name"] == "Escobar Osorio Alejandro Antonio"
+
+
 def test_search_records_applies_real_filters(client, db_factory):
     driver_id, _ = seed_settlement(db_factory)
 
