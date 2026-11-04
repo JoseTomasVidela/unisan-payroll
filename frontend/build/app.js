@@ -1645,7 +1645,7 @@ function settlementToSheetData(settlement, contextOverride = null) {
         }))
     ];
     return {
-        employeeName: settlement.employee.employee_name,
+        employeeName: liquidationEmployeeDisplayName(settlement.employee),
         employeeRut: settlement.employee.rut || "",
         cycleName: settlement.cycle.cycle_name,
         roleLabel: contextOverride?.roleLabel || activeSheetContext?.roleLabel || "",
@@ -1653,6 +1653,13 @@ function settlementToSheetData(settlement, contextOverride = null) {
         dates: sheetDates,
         rows: sheetRows
     };
+}
+
+function liquidationEmployeeDisplayName(employee) {
+    const employeeId = Number(employee?.id);
+    const cachedEmployee = [...contextEmployeesCache, ...searchEmployeesCache]
+        .find(item => Number(item.id) === employeeId);
+    return cachedEmployee?.employee_name || employee?.employee_name || "";
 }
 
 function closeSearchEditModal() {
@@ -1701,7 +1708,7 @@ async function openSearchEditModal(cycleId, employeeId) {
     editModalRows = sheetData.rows;
     editModalEmployeeRut = sheetData.employeeRut;
     editModalContractType = settlement.employee.contract_type || null;
-    searchEditEmployeeName.textContent = settlement.employee.employee_name;
+    searchEditEmployeeName.textContent = liquidationEmployeeDisplayName(settlement.employee);
     searchEditCycleName.textContent = settlement.cycle.cycle_name;
     renderSearchEditModalSpreadsheet();
     searchEditModal.classList.remove("hidden");
@@ -1993,7 +2000,7 @@ function applySettlement(settlement) {
     const sheetData = settlementToSheetData(settlement);
     dates = sheetData.dates;
     rows = sheetData.rows;
-    activeSheetEmployeeName.textContent = settlement.employee.employee_name;
+    activeSheetEmployeeName.textContent = liquidationEmployeeDisplayName(settlement.employee);
     activeSheetEmployeeRut = settlement.employee.rut || "";
     activeSheetCycleName.textContent = settlement.cycle.cycle_name;
     renderSpreadsheet(activeSheetContainer);
@@ -2158,7 +2165,7 @@ async function loadSearchSettlement() {
             cycleId: Number(selectedSearchCycleIds[0]),
             employeeId: Number(selectedSearchEmployeeIds[0])
         }];
-        searchResultTitle.textContent = `Liquidacion ${settlement.employee.employee_name}`;
+        searchResultTitle.textContent = `Liquidacion ${liquidationEmployeeDisplayName(settlement.employee)}`;
         applySettlement(settlement);
         updateSearchActionState();
         return;
@@ -2217,7 +2224,7 @@ async function loadSearchSettlement() {
                 return `
                     <article class="stack-settlement-card">
                         <div class="settlement-meta">
-                            <strong>${escapeHtml(settlement.employee.employee_name)}</strong>
+                            <strong>${escapeHtml(liquidationEmployeeDisplayName(settlement.employee))}</strong>
                             <span>Vista: <b>Consolidado</b></span>
                             <span>Centro: <b>D&R + Servicios</b></span>
                             <span>Ciclo: <b>${escapeHtml(settlement.cycle.cycle_name)}</b></span>
@@ -2240,7 +2247,9 @@ async function loadSearchSettlement() {
 }
 
 function renderContextSettlementStack(settlements) {
-    settlementEmployeeName.textContent = settlements.length === 1 ? settlements[0].employee.employee_name : "Todos";
+    settlementEmployeeName.textContent = settlements.length === 1
+        ? liquidationEmployeeDisplayName(settlements[0].employee)
+        : "Todos";
     spreadsheet.innerHTML = `
         <section class="stack-cycle-group">
             ${settlements.map(settlement => {
@@ -2248,7 +2257,7 @@ function renderContextSettlementStack(settlements) {
                 return `
                     <article class="stack-settlement-card">
                         <div class="settlement-meta">
-                            <strong>${escapeHtml(settlement.employee.employee_name)}</strong>
+                            <strong>${escapeHtml(liquidationEmployeeDisplayName(settlement.employee))}</strong>
                             <span>Tarifa: <b>${escapeHtml(currentContext?.roleLabel || "")}</b></span>
                             <span>Centro: <b>${escapeHtml(currentContext?.centerLabel || "")}</b></span>
                             <span>Ciclo: <b>${escapeHtml(settlement.cycle.cycle_name)}</b></span>
