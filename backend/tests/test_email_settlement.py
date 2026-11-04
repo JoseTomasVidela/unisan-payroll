@@ -44,8 +44,8 @@ def test_sheet_keeps_fixed_recipient_and_settlement_uses_worker_email(
     assert deliveries[0]["cc_recipient"] is None
     assert deliveries[0]["pdf_file_name"].startswith("Planilla-")
     assert deliveries[0]["pdf_content"].startswith(b"%PDF-")
-    assert deliveries[0]["subject"] == "Planilla de Liquidación - Chofer Uno - MAYO/2026"
-    assert deliveries[0]["body"] == "Respaldo de producción Chofer Uno correspondiente a MAYO/2026"
+    assert deliveries[0]["subject"] == "Planilla de Liquidación - Chofer Uno - JUNIO/2026"
+    assert deliveries[0]["body"] == "Respaldo de producción Chofer Uno correspondiente a JUNIO/2026"
     assert b"Chofer Uno" in deliveries[0]["pdf_content"]
     assert b"Actividad" not in deliveries[0]["pdf_content"]
     assert deliveries[1]["recipient"] == "chofer.uno@example.com"
@@ -53,8 +53,8 @@ def test_sheet_keeps_fixed_recipient_and_settlement_uses_worker_email(
     assert deliveries[1]["cc_recipient"] == "rrhh@unisan.cl"
     assert not deliveries[1]["pdf_file_name"].startswith("Planilla-")
     assert deliveries[1]["pdf_content"].startswith(b"%PDF-")
-    assert deliveries[1]["subject"] == "Planilla de Liquidación - Chofer Uno - MAYO/2026"
-    assert deliveries[1]["body"] == "Respaldo de producción Chofer Uno correspondiente a MAYO/2026"
+    assert deliveries[1]["subject"] == "Planilla de Liquidación - Chofer Uno - JUNIO/2026"
+    assert deliveries[1]["body"] == "Respaldo de producción Chofer Uno correspondiente a JUNIO/2026"
 
 
 def test_settlement_email_rejects_worker_without_registered_email(client, db_factory, monkeypatch):

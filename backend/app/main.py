@@ -1121,7 +1121,7 @@ def email_settlement(
     )
     if is_sheet:
         file_name = f"Planilla-{file_name}"
-    cycle_date = settlement["cycle"]["start_date"]
+    cycle_date = settlement["cycle"]["end_date"]
     month_names = (
         "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
         "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE",
@@ -1206,7 +1206,7 @@ def email_settlements_batch(
     try:
         for item, settlement, cost_center, role_type, recipient in deliveries:
             employee_name = settlement["employee"]["employee_name"]
-            cycle_date = settlement["cycle"]["start_date"]
+            cycle_date = settlement["cycle"]["end_date"]
             period = f"{month_names[cycle_date.month - 1]}/{cycle_date.year}"
             send_settlement_email(
                 settings,
