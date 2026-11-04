@@ -76,7 +76,7 @@ def test_settlement_email_rejects_worker_without_registered_email(client, db_fac
     assert deliveries == []
 
 
-def test_batch_validates_all_workers_before_sending_any_email(client, db_factory, monkeypatch):
+def test_batch_skips_workers_without_email_and_sends_the_rest(client, db_factory, monkeypatch):
     driver_id, assistant_id = seed_settlement(db_factory)
     with db_factory() as db:
         db.get(Employee, driver_id).email = "chofer.uno@example.com"
@@ -93,8 +93,37 @@ def test_batch_validates_all_workers_before_sending_any_email(client, db_factory
         ]},
     )
 
-    assert response.status_code == 400
-    assert response.json()["detail"].startswith("Trabajador Auxiliar Uno no tiene un correo registrado")
+    assert response.status_code == 200
+    assert response.json()["sent_count"] == 1
+    assert response.json()["skipped_count"] == 1
+    assert response.json()["skipped"] == [{
+        "employee_id": assistant_id,
+        "recipient_name": "Auxiliar Uno",
+        "reason": "MISSING_EMAIL",
+    }]
+    assert [(item["recipient_name"], item["recipient"]) for item in deliveries] == [
+        ("Chofer Uno", "chofer.uno@example.com"),
+    ]
+
+
+def test_batch_reports_when_every_worker_is_missing_email(client, db_factory, monkeypatch):
+    driver_id, assistant_id = seed_settlement(db_factory)
+    deliveries = []
+    monkeypatch.setattr("app.main.send_settlement_email", lambda *_args, **kwargs: deliveries.append(kwargs))
+
+    response = client.post(
+        "/api/email/settlements/batch",
+        headers=admin_headers(client),
+        json={"items": [
+            {"cycle_id": 1, "employee_id": driver_id},
+            {"cycle_id": 1, "employee_id": assistant_id},
+        ]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "skipped"
+    assert response.json()["sent_count"] == 0
+    assert response.json()["skipped_count"] == 2
     assert deliveries == []
 
 

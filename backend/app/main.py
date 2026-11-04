@@ -1171,6 +1171,7 @@ def email_settlements_batch(
     current_user: User = Depends(require_permission("payroll.email")),
 ) -> dict[str, object]:
     deliveries = []
+    skipped = []
     seen = set()
     for item in payload.items:
         key = (item.cycle_id, item.employee_id, item.cost_center, item.role_type)
@@ -1189,13 +1190,12 @@ def email_settlements_batch(
         employee_name = settlement["employee"]["employee_name"]
         recipient = normalize_email(settlement["employee"].get("email"))
         if not recipient:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Trabajador {employee_name} no tiene un correo registrado, por favor ingrese "
-                    "un correo válido en la sección de Trabajadores y vuelva a intentarlo."
-                ),
-            )
+            skipped.append({
+                "employee_id": item.employee_id,
+                "recipient_name": employee_name,
+                "reason": "MISSING_EMAIL",
+            })
+            continue
         deliveries.append((item, settlement, normalized_cost_center, normalized_role_type, recipient))
 
     month_names = (
@@ -1241,7 +1241,13 @@ def email_settlements_batch(
             new_value=f"SETTLEMENT a {delivery['recipient']}",
         ))
     db.commit()
-    return {"status": "sent", "sent_count": len(sent), "deliveries": sent}
+    return {
+        "status": "sent" if sent else "skipped",
+        "sent_count": len(sent),
+        "skipped_count": len(skipped),
+        "deliveries": sent,
+        "skipped": skipped,
+    }
 
 
 @app.get("/api/users", response_model=list[UserResponse])

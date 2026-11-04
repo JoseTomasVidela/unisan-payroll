@@ -3634,9 +3634,15 @@ async function sendSearchEmail(emailType) {
             email_type: emailType
         })
         });
-        alert(result.sent_count
-            ? `${result.sent_count} liquidaciones enviadas exitosamente a sus respectivos trabajadores.`
-            : `${isSheet ? "Planilla" : "Liquidación"} enviada exitosamente a ${result.recipient_name} (${result.recipient}).`);
+        if (useBatch) {
+            const skippedNames = (result.skipped || []).map(item => item.recipient_name).join(", ");
+            const skippedMessage = result.skipped_count
+                ? ` Se omitieron ${result.skipped_count} sin correo registrado: ${skippedNames}.`
+                : "";
+            alert(`${result.sent_count} liquidaciones enviadas exitosamente.${skippedMessage}`);
+        } else {
+            alert(`${isSheet ? "Planilla" : "Liquidación"} enviada exitosamente a ${result.recipient_name} (${result.recipient}).`);
+        }
     } catch (error) {
         alert(error.message);
     } finally {
@@ -3778,9 +3784,15 @@ async function sendContextEmail(emailType) {
             email_type: emailType
         })
         });
-        alert(result.sent_count
-            ? `${result.sent_count} liquidaciones enviadas exitosamente a sus respectivos trabajadores.`
-            : `${isSheet ? "Planilla" : "Liquidación"} enviada exitosamente a ${result.recipient_name} (${result.recipient}).`);
+        if (useBatch) {
+            const skippedNames = (result.skipped || []).map(item => item.recipient_name).join(", ");
+            const skippedMessage = result.skipped_count
+                ? ` Se omitieron ${result.skipped_count} sin correo registrado: ${skippedNames}.`
+                : "";
+            alert(`${result.sent_count} liquidaciones enviadas exitosamente.${skippedMessage}`);
+        } else {
+            alert(`${isSheet ? "Planilla" : "Liquidación"} enviada exitosamente a ${result.recipient_name} (${result.recipient}).`);
+        }
     } catch (error) {
         alert(error.message);
     } finally {
